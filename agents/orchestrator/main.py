@@ -298,7 +298,7 @@ def run() -> None:
             reply = _help_message()
         elif lowered == "example":
             example_path = root / "schemas/examples/CampaignInput.json"
-            reply = example_path.read_text(encoding="utf-8")
+            reply = "```json\n" + example_path.read_text(encoding="utf-8").strip() + "\n```"
         elif message.content and any(
             isinstance(item, MetadataContent)
             and item.metadata.get("card_protocol_version") == "1"
