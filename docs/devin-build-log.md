@@ -28,3 +28,11 @@ The first post-switch live evaluation used 8 of 40 allowed calls: cases 1 and 2 
 ## User-reported case-1 repair workflow
 
 The user reported that the original case-1 audit correctly returned `FIX_REQUIRED`. The proposed repair was “AeroBeat headphones are splash-resistant for everyday use. Get up to 30 hours of battery life with noise cancellation off. Now $60—25% off!” Re-verification returned `HUMAN_REVIEW` after Gemini quota exhaustion (HTTP 429); the workflow was `PARTIAL` and the repair remained unverified. Audit `b3d4f79e1cf44d7da6bc7fe5d90e4c20`, client session `cacab77b-5206-4f44-a4a5-7108c0506f20`, served model `gemini-3.6-flash`. This is user-reported evidence; no local run or artifact was available.
+
+## 2026-10-18 UTC — ASI:One testing
+
+- At 03:20 UTC, the user's `help` reached the orchestrator mailbox, but the reply failed with `Unable to resolve destination endpoint for agent: agent1qdsz25p7…`. The orchestrator had a rules-only resolver. The user pushed `3dafa38` with `LocalFirstResolver` in `agents/common.py`, trying local rules before `GlobalResolver` for the public orchestrator.
+- At 03:23 UTC, the reply arrived but raised `ValueError`: ASI:One includes the leading `@agent…` mention in the message text. The user pushed `afc5774` with `strip_leading_mentions` in `agents/orchestrator/main.py`.
+- At 03:37 UTC, `@<orchestrator address> help` returned the command list in ASI:One. The user's screenshot showed a reply from `adproof-orchestrator`.
+- At 03:38 UTC, ASI:One `demo aerobeat` reached the three-agent workflow. Audit `c5fc4813b2d041f890a02f2f5cb7cba4` completed in 5.31 s. Image inspection succeeded with served model `gemini-3.6-flash`; verifier Gemini HTTP 429 quota exhaustion led to final `HUMAN_REVIEW`, workflow status `COMPLETED`, `repair_verified=false`, and no repair. Transport/discovery/chat passed, but the full live FIX_REQUIRED → repair → re-verify gate is PARTIAL due to the free-tier quota.
+- The user reports the updated branch has 104 tests. This docs-only update did not rerun tests or make Gemini calls. Remaining human steps are to enable Gemini billing, resend `demo aerobeat`, and run `docker compose up` on an always-on host with the same persistent `runtime/` seeds to preserve the address and mailbox.
