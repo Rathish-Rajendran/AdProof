@@ -198,7 +198,19 @@ def test_render_case_one_report_as_numbered_markdown_with_repair_and_recheck():
             revised_audit=revised_audit,
         )
     )
-    assert list(result) == ["audit_id", "original_check", "fix", "recheck", "final"]
+    assert list(result) == [
+        "audit_id",
+        "verdict",
+        "confidence",
+        "summary",
+        "original_check",
+        "fix",
+        "recheck",
+        "final",
+        "claims",
+        "compliance",
+        "checks_failed",
+    ]
     assert len(result["original_check"]["issues"]) == 4
     assert result["recheck"] == {"decision": "PASS", "issues": [], "changed_decision": True}
     assert result["final"]["decision"] == "PASS"
@@ -233,6 +245,8 @@ def test_quota_failure_report_deduplicates_notes_and_omits_repair():
     assert result["original_check"] == {"decision": None, "issues": []}
     assert "fix" not in result
     assert result["final"]["decision"] == "HUMAN_REVIEW"
+    assert result["verdict"] == "NEEDS_HUMAN_APPROVAL"
+    assert result["confidence"] == 0
     assert result["notes"] == ["Gemini quota exhausted."]
 
 

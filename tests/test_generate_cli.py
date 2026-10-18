@@ -25,6 +25,21 @@ def test_empty_prompt_returns_a_fenced_json_error(capsys):
         "language": "en",
         "audience": "adults",
     }
+    assert list(result) == [
+        "audit_id",
+        "verdict",
+        "confidence",
+        "summary",
+        "request",
+        "original_check",
+        "final",
+        "claims",
+        "compliance",
+        "checks_failed",
+        "notes",
+    ]
+    assert result["verdict"] == "NEEDS_HUMAN_APPROVAL"
+    assert result["confidence"] == 0
     assert result["final"] == {
         "decision": "HUMAN_REVIEW",
         "ad_copy": None,
@@ -69,9 +84,28 @@ def test_generator_failure_returns_a_fenced_json_error(monkeypatch, capsys):
         "language": "en",
         "audience": "adults",
     }
+    assert list(result) == [
+        "audit_id",
+        "verdict",
+        "confidence",
+        "summary",
+        "request",
+        "original_check",
+        "final",
+        "claims",
+        "compliance",
+        "checks_failed",
+        "notes",
+    ]
+    assert result["summary"] == (
+        "1 of 1 checks failed (verification: Model service unavailable.). Human approval needed."
+    )
     assert result["final"]["decision"] == "HUMAN_REVIEW"
     assert result["final"]["ad_copy"] is None
     assert result["final"]["repair_verified"] is False
+    assert result["checks_failed"] == [
+        {"check": "verification", "reason": "Model service unavailable."}
+    ]
     assert result["notes"] == [
         "Model service unavailable.",
         "Attempt 1: first deterministic violation",

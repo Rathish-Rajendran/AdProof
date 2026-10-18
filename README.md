@@ -170,17 +170,36 @@ Healthy output lists `HEALTHY` for all four roles. Stop the foreground superviso
    ```json
    {
      "audit_id": "example-audit-id",
-     "request": {"prompt": "Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults"},
+     "verdict": "READY",
+     "confidence": 100,
+     "summary": "All 1 claims are backed by aerobeat-ab01-product; 2 policy rules checked, none broken.",
+     "request": {"prompt": "Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults", "platform": "google_ads", "jurisdiction": "US", "language": "en", "audience": "adults"},
      "generated_ad": {"headlines": ["AeroBeat AB-01"], "descriptions": ["Up to 30 hours with ANC off."], "final_url": "https://aerobeat.example/products/ab-01", "sources": ["aerobeat-ab01-product#1"]},
      "original_check": {"decision": "PASS", "issues": []},
-     "final": {"decision": "PASS", "ad_copy": "AeroBeat AB-01. Up to 30 hours with ANC off.", "repair_verified": false}
+     "final": {"decision": "PASS", "ad_copy": "AeroBeat AB-01. Up to 30 hours with ANC off.", "repair_verified": false},
+     "claims": [{"claim": "Up to 30 hours with ANC off.", "result": "SUPPORTED", "source": "aerobeat-ab01-product#1", "quote": "Up to 30 hours of battery life with ANC off."}],
+     "compliance": [
+       {"policy": "Google Ads Misrepresentation — Misleading ad design: inconsistencies between the ad and the landing page", "rule_id": "GADS_MISLEADING_AD_DESIGN_AD_LANDING_INCONSISTENCY", "result": "OK"},
+       {"policy": "Google Ads Misrepresentation — Unreliable claims: inaccurate claims", "rule_id": "GADS_UNRELIABLE_CLAIMS_INACCURATE_CLAIM", "result": "OK"}
+     ],
+     "checks_failed": []
    }
    ```
+
+   - Confidence is computed deterministically by application code, not by the model.
+   - Checks cover each claim, active policy rule, evidence-coverage field, unresolved issue, and processing error.
+   - `READY` requires confidence of at least 95 and no failed checks.
+   - Confidence is a measure of passed checks, not a probability.
+   - `READY` is not platform approval, certification, or a guarantee of ad acceptance.
+
 3. The expected case-1 result is an original `FIX_REQUIRED` audit with four issues: two `AD_LANDING_PAGE_CONTRADICTION` findings for waterproof and 48-hour battery claims, `UNVERIFIED_ENDORSEMENT` for the unsupported athlete endorsement, and `PRICE_DISCOUNT_MISMATCH` for the 50%-off claim (the evidence establishes 25%). The workflow proposes one copy-only repair and independently re-checks it against the same image. The latest user-reported live run passed all steps in about 19.4 seconds. ASI:One now returns one pretty-printed JSON block rather than a result card; for example:
 
    ```json
    {
-     "audit_id": "8fef0a98d3ad4144a805427ce679228a",
+     "audit_id": "d29f13abaff94be5a6f23d8ce613055f",
+     "verdict": "READY",
+     "confidence": 100,
+     "summary": "All 4 claims are backed by https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat.html; 2 policy rules checked, none broken.",
      "original_check": {
        "decision": "FIX_REQUIRED",
        "issues": [
@@ -198,7 +217,18 @@ Healthy output lists `HEALTHY` for all four roles. Stop the foreground superviso
        "decision": "PASS",
        "ad_copy": "AeroBeat headphones are splash-resistant for everyday use. Get up to 30 hours of battery life with noise cancellation off. Now $60—25% off!",
        "repair_verified": true
-     }
+     },
+     "claims": [
+       {"claim": "AeroBeat headphones are splash-resistant for everyday use.", "result": "SUPPORTED", "source": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat.html", "quote": "Splash-resistant for everyday use; not waterproof."},
+       {"claim": "Get up to 30 hours of battery life with noise cancellation off.", "result": "SUPPORTED", "source": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat.html", "quote": "Up to 30 hours of battery life with noise cancellation off."},
+       {"claim": "Now $60.", "result": "SUPPORTED", "source": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat.html", "quote": "Current price $60."},
+       {"claim": "25% off regular price.", "result": "SUPPORTED", "source": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat.html", "quote": "Regular price $80. Current price $60."}
+     ],
+     "compliance": [
+       {"policy": "Google Ads Misrepresentation — Misleading ad design: inconsistencies between the ad and the landing page", "rule_id": "GADS_MISLEADING_AD_DESIGN_AD_LANDING_INCONSISTENCY", "result": "OK"},
+       {"policy": "Google Ads Misrepresentation — Unreliable claims: inaccurate claims", "rule_id": "GADS_UNRELIABLE_CLAIMS_INACCURATE_CLAIM", "result": "OK"}
+     ],
+     "checks_failed": []
    }
    ```
 

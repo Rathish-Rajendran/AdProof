@@ -283,12 +283,18 @@ async def test_offline_generation_workflow_repairs_and_rechecks():
     assert summary["generated_ad"]["final_url"] == PAGE_URL
     assert list(summary) == [
         "audit_id",
+        "verdict",
+        "confidence",
+        "summary",
         "request",
         "generated_ad",
         "original_check",
         "fix",
         "recheck",
         "final",
+        "claims",
+        "compliance",
+        "checks_failed",
     ]
     assert set(summary) >= {
         "audit_id",
