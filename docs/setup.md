@@ -1,14 +1,50 @@
-# Setup
+# Setup and operations
 
-Use Python 3.11 and `uv sync --frozen`. Copy `.env.example` to a private `.env` only for local use; never commit it. `GEMINI_API_KEY` enables opt-in paid inference. `SENTRY_DSN` enables telemetry ingestion but is not required for offline operation.
+## Local development
 
-Run the offline suite with `uv run pytest -q` and static checks with `uv run ruff check .`. Use `uv run python -m adproof.demo --mode mock` for the explicitly labeled fixture demonstration. Agent worker commands are listed in `agents/*/README.md`.
+Install Python 3.11 and uv, then install the frozen dependency set:
 
-The local supervisor starts verifier, remediator, and orchestrator at loopback ports 8101, 8102, and 8100, respectively:
+```sh
+uv sync --frozen
+uv run pytest -q
+uv run ruff check .
+uv run ruff format --check .
+uv run python -m adproof.preflight --offline
+uv run python -m adproof.demo --mode mock
+```
+
+The offline suite requires no keys. MOCK is an explicit deterministic demonstration only. LIVE requires a privately configured `GEMINI_API_KEY`; `GEMINI_MODEL` selects the model and defaults to `gemini-3.8-flash`. `SENTRY_DSN` is optional and must not affect audit outcomes.
+
+## Three-agent local runtime
+
+Copy `.env.example` to `.env` only if you need local secrets or overrides; keep `.env` private. To start all agents under the supervisor:
 
 ```sh
 uv run python scripts/prepare_runtime.py
 bash scripts/run_all.sh
 ```
 
-The supervisor creates persistent seeds only when absent, writes public addresses separately, checks all three `/health` endpoints, and stops the child processes on Ctrl-C. It does not enable mailbox registration by default. To verify cross-handler ACP replies and watchdog timeouts against an actual client agent, run `bash scripts/run_transport_proof.sh` with `GEMINI_API_KEY` bound in the environment; the test-only probe does not invoke Gemini.
+The verifier, remediator, and orchestrator use loopback ports 8101, 8102, and 8100. Stable private seeds are written under ignored `runtime/`; public addresses are written separately to `runtime/agents.json`. Do not delete or rotate the seeds when restarting a deployed identity. The supervisor waits for health checks and stops child processes on Ctrl-C. `uv run python -m adproof.status` reports all three health states and addresses.
+
+The transport proof command runs a test ACP client and verifies delayed replies and watchdog timeouts against the original chat session:
+
+```sh
+bash scripts/run_transport_proof.sh
+```
+
+The mailbox switch is disabled by default. For Agentverse/ASI:One, set `ADPROOF_MAILBOX_ENABLED=1` and keep the orchestrator running on a reachable host. Specialists retain explicit local HTTP endpoints and a resolver map. The mailbox-mode local reachability proof remains PENDING; do not infer public discovery from local tests.
+
+## Docker Compose
+
+```sh
+cp .env.example .env
+# Add privately supplied model credentials to .env if LIVE inference is required.
+docker compose run --rm --no-deps orchestrator python scripts/prepare_runtime.py
+docker compose up --build
+```
+
+Compose runs three services, shares the private `runtime` volume, and checks `/health` on each process. It requires a usable model key because the workers are configured for LIVE processing. To stop them, use `docker compose down`; do not remove the volume if the deployed agent identities must remain stable.
+
+## Schema and policy maintenance
+
+`uv run python scripts/export_schemas.py` regenerates contract schemas and examples. `uv run python scripts/refresh_policy_sources.py` fetches current ACTIVE source pages through safe HTTP and reports whether each reviewed excerpt still occurs; it never updates catalog contents automatically.

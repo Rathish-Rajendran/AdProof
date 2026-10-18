@@ -17,7 +17,13 @@ from adproof.model_client import FakeModelClient
 from adproof.orchestrator.gateway import LocalGateway
 from adproof.orchestrator.workflow import WorkflowDependencies, run_campaign
 from adproof.verifier.policy import PolicyEngine
-from adproof.verifier.verifier import VerificationDependencies, _AssessmentOutput, _ClaimExtraction
+from adproof.verifier.verifier import (
+    VerificationDependencies,
+    _Assessment,
+    _AssessmentOutput,
+    _ClaimExtraction,
+    _ExtractedClaim,
+)
 
 
 class FixtureHttpClient:
@@ -60,8 +66,74 @@ async def run_mock(*, repair: bool = False) -> int:
     client = FakeModelClient(
         [
             _InspectionOutput(observations=[], readable=True),
-            _ClaimExtraction(claims=[], ignored_statements=[]),
-            _AssessmentOutput(assessments=[]),
+            _ClaimExtraction(
+                claims=[
+                    _ExtractedClaim(
+                        claim="AeroBeat headphones are completely waterproof.",
+                        source="ad_text",
+                        claim_type="performance",
+                    ),
+                    _ExtractedClaim(
+                        claim="Get 48-hour battery life with noise cancellation off.",
+                        source="ad_text",
+                        claim_type="quantitative_specification",
+                        conditions={"noise_cancellation": "off"},
+                    ),
+                    _ExtractedClaim(
+                        claim="Recommended by 1,000 athletes.",
+                        source="ad_text",
+                        claim_type="endorsement",
+                    ),
+                    _ExtractedClaim(
+                        claim="Now $60.",
+                        source="ad_text",
+                        claim_type="price",
+                    ),
+                    _ExtractedClaim(
+                        claim="50% off",
+                        source="ad_text",
+                        claim_type="discount",
+                    ),
+                ],
+                ignored_statements=[],
+            ),
+            _AssessmentOutput(
+                assessments=[
+                    _Assessment(
+                        claim_id="claim-1",
+                        status="CONTRADICTED",
+                        source_index=0,
+                        quote="not waterproof",
+                        explanation="The product page says not waterproof.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-2",
+                        status="CONTRADICTED",
+                        source_index=0,
+                        quote="Up to 30 hours of battery life with noise cancellation off.",
+                        explanation="The page states up to 30 hours, not 48 hours.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-3",
+                        status="INSUFFICIENT_EVIDENCE",
+                        explanation="No independent athlete endorsement is supplied.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-4",
+                        status="SUPPORTED",
+                        source_index=0,
+                        quote="Current price $60.",
+                        explanation="The page lists $60 as the current price.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-5",
+                        status="SUPPORTED",
+                        source_index=0,
+                        quote="Regular price $80. Current price $60.",
+                        explanation="The page lists the labeled original and current prices.",
+                    ),
+                ]
+            ),
         ]
     )
     http = FixtureHttpClient(root)
