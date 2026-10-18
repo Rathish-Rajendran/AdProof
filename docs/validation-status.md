@@ -4,9 +4,9 @@ Only executed checks may be marked PASS. This file is updated with exact command
 
 | Gate | Status | Evidence |
 |---|---|---|
-| Offline install, tests, lint, schemas | PASS | `uv sync --frozen` succeeded; `uv run pytest -q` — 118 passed; `uv run ruff check .` — all checks passed; `uv run ruff format --check .` — 85 files already formatted. `scripts/export_schemas.py` regenerated the JSON Schema artifacts and the generated-schema test passed. |
+| Offline install, tests, lint, schemas | PASS | `uv sync --frozen` succeeded; `uv run pytest -q` — 128 passed; `uv run ruff check .` — all checks passed; `uv run ruff format --check .` — 86 files already formatted. `scripts/export_schemas.py` regenerated the JSON Schema artifacts and the generated-schema test passed. |
 | Offline preflight and MOCK compatibility | PASS | Latest `uv run python -m adproof.preflight --offline` passed. Latest explicit MOCK demo reported `FIX_REQUIRED` for the unsafe case-1 copy with synthetic claims and arithmetic; it is not live model evidence. Legacy MOCK suite/server were validated before these changes. |
-| Ollama configured-provider evaluation | PARTIAL | The user approved Ollama as the default provider with `qwen2.5vl:3b`. User-measured CPU probes were correct, but the 2026-10-18 four-case live evaluation missed expected decisions in cases 1, 2, and 4; case 3 matched `FIX_REQUIRED` without reporting the `$49` image mismatch. Detailed claims, errors, calls, timings, and artifact paths follow below. |
+| Ollama per-job model evaluation | PARTIAL | The current approved defaults use `qwen2.5:3b` for text jobs and `qwen2.5vl:3b` for image inspection. The per-job case-1 run returned `HUMAN_REVIEW` instead of `FIX_REQUIRED`; the 7B run was stopped for latency after cases 1–2 also returned `HUMAN_REVIEW`. Details and artifact paths follow below. |
 | Secret-safe artifacts and runtime state | PARTIAL | `.env.example` contains names only; runtime seed/address/database paths are gitignored. No dedicated secret-scanner run was performed. |
 | Contracts, decisions, evidence, arithmetic, safety, store, and repair tests | PARTIAL | Offline unit tests cover strict contracts, all report-selection branches, quote validation, price arithmetic, policy provenance, SSRF/image checks, store behavior, and remediator validation; not every §9 scenario is implemented. |
 | Gemini live evaluation cases 1–4 | PARTIAL | Gemini run `runtime/eval/3174cec9ee434b568b9ce547f8e9d375.json`, configured `gemini-3.5-flash`, budget 40, 8 calls used. Cases 1–2 matched expected decisions; cases 3–4 returned non-retryable quota `MODEL_UNAVAILABLE` (HTTP 429) and `HUMAN_REVIEW`. Detailed claims, arithmetic, call latencies, and artifact notes follow below. Successful call records reported `gemini-3.6-flash`; no fallback or model substitution. |
@@ -26,13 +26,34 @@ Only executed checks may be marked PASS. This file is updated with exact command
 
 Runtime seeds remain only in ignored `runtime/` files and are not recorded here.
 
-## Ollama local provider
+## Ollama provider and per-job routing
 
-The user approved Ollama as the default model provider, temporarily departing from the Gemini-exclusive original spec. `qwen2.5vl:3b` is the configured default; Gemini remains selectable with `ADPROOF_MODEL_PROVIDER=gemini`. On the user's CPU-only 8-core, 31 GB host, `qwen2.5vl:3b` read the only-$49 image correctly in 42 seconds including model load and split unsafe copy into four correct atomic claims in 10 seconds. `gemma3:4b` was also correct but took 71 seconds and 46 seconds, respectively. Small local models may be less accurate than Gemini and slower on CPU.
+The user approved Ollama as the default model provider, temporarily departing from the Gemini-exclusive original spec. The low-latency per-job defaults are `ollama:qwen2.5vl:3b` for image inspection and `ollama:qwen2.5:3b` for claim extraction, evidence assessment, and copy remediation. The 7B vision/text pair is the higher-accuracy local option, but slower on CPU; the partial 7B run below did not establish a quality improvement. Gemini remains selectable per job through `<provider>:<model>` settings. On the user's CPU-only 8-core, 31 GB host, the `qwen2.5vl:3b` probe read the only-$49 image correctly in 42 seconds including model load and split unsafe copy into four correct atomic claims in 10 seconds. `gemma3:4b` was also correct but took 71 seconds and 46 seconds, respectively; these are single-machine observations, not benchmarks. Small local models may be less accurate than Gemini and slower on CPU.
 
-The four-case command `uv run python -m adproof.eval --live --cases 1,2,3,4 --max-model-calls 40` completed on 2026-10-18; the detailed Ollama results follow.
+### Interrupted per-job 7B evaluation
 
-## Latest live evaluation: Ollama default provider
+Run `78a7d6d3d53d4a08b3301f5d01bbf93e` used `ollama:qwen2.5vl:7b` for image inspection and `ollama:qwen2.5:7b` for text jobs. It was stopped for latency after case 2 completed while case 3 was in progress; there is no final evaluation JSON, and cases 3–4 have no completed results. The completed workflow reports are in `runtime/eval/78a7d6d3d53d4a08b3301f5d01bbf93e-case-1.sqlite3` and `...-case-2.sqlite3`.
+
+| Case | Expected → actual | Claims and errors | Timing |
+|---|---|---|---|
+| 1 | `FIX_REQUIRED` → `HUMAN_REVIEW` | All four claims (waterproof, 48-hour battery, athlete endorsement, and 50% discount) were `INSUFFICIENT_EVIDENCE`. Four `INVALID_EVIDENCE` errors show that all four supplied quotes failed source validation. | Workflow 185.380 s. |
+| 2 | `PASS` → `HUMAN_REVIEW` | Splash resistance, up-to-30-hour battery, and 25% discount claims were all `INSUFFICIENT_EVIDENCE`; three `INVALID_EVIDENCE` errors rejected the supplied quotes. | Workflow 83.552 s. |
+| 3 | `FIX_REQUIRED` → incomplete | The workflow had entered `VERIFYING` when the run was stopped; no final decision or timing was recorded. | Incomplete. |
+| 4 | `PASS` → not run | Not started before the run was stopped. | — |
+
+The stopped evaluation did not write a top-level JSON artifact, so model-call records and per-job counts are unavailable. The two completed reports document the resolved per-job specs and typed invalid-evidence errors. The operator then approved the faster 3B defaults and a case-1-only live evaluation; its result is recorded below.
+
+### Per-job 3B evaluation — case 1
+
+Run `66161b7a70df405790ff7d8feb85e4f2` ran on 2026-10-18 with `ollama:qwen2.5vl:3b` for image inspection and `ollama:qwen2.5:3b` for text jobs. The command was `uv run python -m adproof.eval --live --cases 1 --max-model-calls 12`; it used 3 of 12 calls and completed in 93.629 s (93.637 s wall time).
+
+| Case | Expected → actual | Claims and errors | Calls and timing |
+|---|---|---|---|
+| 1 | `FIX_REQUIRED` → `HUMAN_REVIEW` (`COMPLETED`) | Three extracted claims—waterproof, 48-hour battery, and athlete endorsement—were `INSUFFICIENT_EVIDENCE`; the 50%-discount claim was not extracted. The image had `UNSUPPORTED_CONTEXT`. No `INVALID_EVIDENCE` errors occurred, so evidence assessment did not return rejected quotes. No repair was proposed. | 3 calls: image inspection 38.605 s; claim extraction 32.305 s; evidence assessment 22.364 s. One call per job. |
+
+The result shows that the fast per-job 3B configuration still does not establish the expected unsafe-ad decision quality. Its JSON report is `runtime/eval/66161b7a70df405790ff7d8feb85e4f2.json`. Case 3 was not run in this evaluation, so whether the `$49` image issue is detected by this configuration remains unverified.
+
+## Earlier live evaluation: single-model Ollama
 
 Run ID `e9988b07a6c44b308065df0ac7582926` ran on 2026-10-18 at 05:02:53 UTC with provider `ollama`, configured and reported model `qwen2.5vl:3b`, and a 40-call budget. It used 13 calls. All model requests returned successfully; the failures below were output-quality and validation results, not Ollama transport errors. Each case returned `workflow_status=COMPLETED`; arithmetic was empty for all four. Evidence IDs were reported valid in all cases.
 

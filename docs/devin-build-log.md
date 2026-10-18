@@ -2,9 +2,21 @@
 
 ## User-approved Ollama default provider
 
-The user approved a temporary departure from the original Gemini-exclusive model-provider requirement: Ollama is now the default provider, with Gemini still selectable through environment configuration only. The default local model is `qwen2.5vl:3b`; it is not to be changed without user approval. This choice follows the user's CPU-only probes on an 8-core, 31 GB host: `qwen2.5vl:3b` correctly read the only-$49 image in 42 seconds including model load and split the unsafe copy into four atomic claims in 10 seconds. `gemma3:4b` also returned correct results but took 71 seconds and 46 seconds, respectively.
+The user approved a temporary departure from the original Gemini-exclusive model-provider requirement: Ollama remains the default provider, with Gemini selectable per job through environment configuration. The current low-latency defaults are `ollama:qwen2.5vl:3b` for image inspection and `ollama:qwen2.5:3b` for claim extraction, evidence assessment, and copy remediation. The 7B vision/text pair is the higher-accuracy local option, but slower on CPU; its partial evaluation below did not demonstrate a quality improvement. The original CPU-only probes on an 8-core, 31 GB host measured `qwen2.5vl:3b` reading the only-$49 image in 42 seconds including model load and splitting unsafe copy into four atomic claims in 10 seconds. `gemma3:4b` also returned correct results but took 71 seconds and 46 seconds, respectively; those measurements are not benchmarks for the 7B pair.
 
-Small local models may be less accurate than Gemini and slower on CPU. The workflow deadline is configurable and defaults to 600 seconds. Switching back to Gemini requires `ADPROOF_MODEL_PROVIDER=gemini`, `GEMINI_API_KEY`, and restarting the agents; no code change is needed.
+The vision model is used only for the job that reads image pixels; text jobs use a text-only model for instruction following and JSON at lower latency, and copy remediation shares that model because application code validates numeric changes. Small local models may be less accurate than Gemini and slower on CPU. The workflow deadline is configurable and defaults to 600 seconds. A job can use Gemini by setting its model variable to a spec such as `gemini:gemini-3.5-flash`; the key is needed only when a Gemini job is called. The workflow can be restarted with a different mapping without a code change.
+
+## 2026-10-18 — Per-job model routing
+
+Added validated `<provider>:<model>` settings, split on the first colon so Ollama tags such as `qwen2.5:7b` are preserved. The image-inspection job defaults to the vision model `ollama:qwen2.5vl:3b`; the three text jobs inherit `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b` unless individually overridden. Legacy `ADPROOF_MODEL_PROVIDER`, `OLLAMA_MODEL`, and `GEMINI_MODEL` configurations derive the default when `ADPROOF_MODEL_DEFAULT` is unset. The router constructs provider clients lazily and shares the call budget; audit reports and live evaluation outputs record the resolved spec for each job.
+
+## 2026-10-18 — Latency-driven model change
+
+The user asked to prioritize fast responses until paid Gemini access is available. After the user approved pulling `qwen2.5:3b`, the 7B run `78a7d6d3d53d4a08b3301f5d01bbf93e` was stopped for latency. Its completed case 1 took 185.380 s and returned `HUMAN_REVIEW` instead of `FIX_REQUIRED`, with all four claims `INSUFFICIENT_EVIDENCE` and four `INVALID_EVIDENCE` quote errors. Completed case 2 took 83.552 s and returned `HUMAN_REVIEW` instead of `PASS`, with all three claims `INSUFFICIENT_EVIDENCE` and three invalid-quote errors. Case 3 was interrupted while `VERIFYING`; case 4 was not run. The run had no final JSON, so call records are unavailable.
+
+## 2026-10-18 — Per-job 3B case-1 evaluation
+
+Run `66161b7a70df405790ff7d8feb85e4f2` used `qwen2.5vl:3b` for image inspection and `qwen2.5:3b` for text, with 3 of 12 calls. Case 1 completed with `HUMAN_REVIEW` instead of `FIX_REQUIRED` in 93.629 s workflow time (93.637 s wall). The model extracted waterproof, 48-hour battery, and athlete endorsement claims, all `INSUFFICIENT_EVIDENCE`, but omitted the 50%-discount claim. Image coverage triggered `UNSUPPORTED_CONTEXT`; no invalid quote errors occurred and no repair was proposed. The report is `runtime/eval/66161b7a70df405790ff7d8feb85e4f2.json`.
 
 ## 2026-10-18 — Ollama live evaluation
 
