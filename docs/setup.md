@@ -1,5 +1,7 @@
 # Setup and operations
 
+For the complete reproducible workflow—including Agentverse mailbox connection, ASI:One testing, Docker hosting, current addresses, and live validation—see the numbered [README guide](../README.md).
+
 ## Local development
 
 Install Python 3.11 and uv, then install the frozen dependency set:
@@ -17,14 +19,21 @@ The offline suite requires no keys. MOCK is an explicit deterministic demonstrat
 
 ## Three-agent local runtime
 
-Copy `.env.example` to `.env` only if you need local secrets or overrides; keep `.env` private. To start all agents under the supervisor:
+The Python settings and `scripts/run_all.sh` do not load `.env` automatically. Create it from `.env.example` if needed, edit it privately, then export its values in every shell used to run the agents or status command:
 
 ```sh
-uv run python scripts/prepare_runtime.py
+set -a
+source .env
+set +a
+```
+
+From the repository root, start all agents under the supervisor:
+
+```sh
 bash scripts/run_all.sh
 ```
 
-The verifier, remediator, and orchestrator use loopback ports 8101, 8102, and 8100. Stable private seeds are written under ignored `runtime/`; public addresses are written separately to `runtime/agents.json`. Do not delete or rotate the seeds when restarting a deployed identity. The supervisor waits for health checks and stops child processes on Ctrl-C. `uv run python -m adproof.status` reports all three health states and addresses.
+The script prepares identities on first start. The verifier, remediator, and orchestrator use loopback ports 8101, 8102, and 8100. Stable private seeds are written under ignored `runtime/`; public addresses are written separately to `runtime/agents.json`. Do not delete or rotate the seeds when restarting a deployed identity. The supervisor waits for health checks and stops child processes on Ctrl-C. In another shell with `.env` exported, `uv run python -m adproof.status` reports all three health states and addresses.
 
 The transport proof command runs a test ACP client and verifies delayed replies and watchdog timeouts against the original chat session:
 
@@ -38,14 +47,17 @@ Optionally set `ADPROOF_ORCHESTRATOR_HANDLE` to publish a human-readable handle 
 
 ## Docker Compose
 
+For the complete mailbox-enabled, always-on setup and current Docker validation status, follow [README section 9](../README.md#9-always-on-hosting-docker). Compose reads `.env` directly; the local-shell export step above does not apply to Compose.
+
 ```sh
-cp .env.example .env
-# Add privately supplied model credentials to .env if LIVE inference is required.
-docker compose run --rm --no-deps orchestrator python scripts/prepare_runtime.py
-docker compose up --build
+if [ ! -f .env ]; then cp .env.example .env; fi
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+docker compose logs orchestrator
 ```
 
-Compose runs three services, shares the private `runtime` volume, and checks `/health` on each process. It requires a usable model key because the workers are configured for LIVE processing. To stop them, use `docker compose down`; do not remove the volume if the deployed agent identities must remain stable.
+Compose runs three services, shares the private named `runtime` volume, and checks `/health` on each process. It requires a usable model key because the workers are configured for LIVE processing. To stop them, use `docker compose down`; do not remove the volume if the deployed agent identities must remain stable. Do not overwrite an already configured `.env`; never commit it.
 
 ## Schema and policy maintenance
 
