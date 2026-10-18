@@ -1,3 +1,5 @@
+import json
+
 from adproof.domain.models import (
     AuditReport,
     Coverage,
@@ -17,7 +19,13 @@ from adproof.domain.models import (
     VerificationResult,
     WorkflowStatus,
 )
-from agents.orchestrator.main import _help_message, _render_report, _welcome_message
+from adproof.orchestrator.report_view import report_summary
+from agents.orchestrator.main import (
+    _help_message,
+    _render_report,
+    _text_chunks,
+    _welcome_message,
+)
 
 
 def _coverage() -> Coverage:
@@ -180,34 +188,32 @@ def test_render_case_one_report_as_numbered_markdown_with_repair_and_recheck():
         )
     )
 
-    assert "## AdProof preflight: **PASS**" in rendered
-    assert "### Original audit — FIX_REQUIRED" in rendered
-    assert "### Proposed repair (copy only)" in rendered
-    assert "### Independent re-check — PASS" in rendered
-    assert "> Splash-resistant. Up to 30 hours. Now $60—25% off!" in rendered
-    assert "Image issues a copy edit cannot fix:" in rendered
-    assert "No unresolved issues within the checked scope." in rendered
-    original_section = rendered.split("### Original audit — FIX_REQUIRED\n", 1)[1].split(
-        "\n\n### Proposed repair", 1
-    )[0]
-    assert [line.split(".", 1)[0] for line in original_section.splitlines()] == [
-        "1",
-        "2",
-        "3",
-        "4",
-    ]
-    assert "**Ad Landing Page Contradiction** (fix)" in original_section
-    assert "**Unverified Endorsement** (fix)" in original_section
-    assert "**Price Discount Mismatch** (fix)" in original_section
-    for rule_id in (
-        "landing_page_consistency",
-        "claim_landing_page_consistency",
-        "endorsement_evidence",
-        "discount_accuracy",
-    ):
-        assert f"_Rule: {rule_id}_" in original_section
-    assert "PRICE_DISCOUNT_MISMATCH" not in rendered
-    assert "selected candidate" not in rendered
+    assert rendered.startswith("```json\n{") and rendered.endswith("}\n```")
+    json_block = rendered.split("```json\n", 1)[1].split("\n```", 1)[0]
+    result = json.loads(json_block)
+    assert result == report_summary(
+        _report(
+            original_audit=original_audit,
+            repair_proposal=repair_proposal,
+            revised_audit=revised_audit,
+        )
+    )
+    assert list(result) == ["audit_id", "original_check", "fix", "recheck", "final"]
+    assert len(result["original_check"]["issues"]) == 4
+    assert result["recheck"] == {"decision": "PASS", "issues": [], "changed_decision": True}
+    assert result["final"]["decision"] == "PASS"
+    assert result["final"]["repair_verified"] is True
+    assert result["fix"]["image_changes"][0].startswith("The image shows a $49 price")
+
+
+def test_long_report_chunks_keep_the_json_block_whole():
+    text = "intro\n\n" + "x" * 3000 + "\n\n```json\n" + "{}\n" * 900 + "```"
+    chunks = _text_chunks(text)
+    assert len(chunks) == 2
+    assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
+
+    oversized_json = "```json\n" + "{}\n" * 1500 + "```"
+    assert _text_chunks("intro\n\n" + oversized_json) == ["intro", oversized_json]
 
 
 def test_quota_failure_report_deduplicates_notes_and_omits_repair():
@@ -223,10 +229,11 @@ def test_quota_failure_report_deduplicates_notes_and_omits_repair():
         )
     )
 
-    assert "## AdProof preflight: **HUMAN_REVIEW**" in rendered
-    assert "### Processing notes" in rendered
-    assert rendered.count("`MODEL_UNAVAILABLE` — Gemini quota exhausted.") == 1
-    assert "### Proposed repair (copy only)" not in rendered
+    result = json.loads(rendered.removeprefix("```json\n").removesuffix("\n```"))
+    assert result["original_check"] == {"decision": None, "issues": []}
+    assert "fix" not in result
+    assert result["final"]["decision"] == "HUMAN_REVIEW"
+    assert result["notes"] == ["Gemini quota exhausted."]
 
 
 def test_help_and_welcome_are_markdown_and_include_scope():

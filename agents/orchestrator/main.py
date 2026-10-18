@@ -21,16 +21,17 @@ from uagents_core.contrib.protocols.chat import (
     chat_protocol_spec,
 )
 
-from adproof.domain.models import AuditReport, CampaignInput, ExecutionMode, Issue
+from adproof.domain.models import AuditReport, CampaignInput, ExecutionMode
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry, record_event
 from adproof.orchestrator.cards import (
-    create_result_card,
+    card_action_from_text,
     extract_card_action,
     handle_card_action,
 )
 from adproof.orchestrator.gateway import UAgentsGateway
 from adproof.orchestrator.limits import OwnerAuditLimiter
+from adproof.orchestrator.report_view import render_report
 from adproof.orchestrator.workflow import build_live_dependencies, run_campaign
 from adproof.transport.models import SpecialistOperation, SpecialistResult, SpecialistTask
 from adproof.transport.pending import PendingTaskRegistry
@@ -50,8 +51,16 @@ _SCOPE_LINE = (
 _owner_limiter = OwnerAuditLimiter(limit=2)
 
 
-def _text_chunks(text: str) -> list[str]:
-    return [text[index : index + 3600] for index in range(0, len(text), 3600)] or [""]
+def _text_chunks(text: str, limit: int = 3600) -> list[str]:
+    """Group blank-line-separated blocks into messages; a block is never split."""
+    chunks = [""]
+    for block in text.split("\n\n"):
+        candidate = f"{chunks[-1]}\n\n{block}" if chunks[-1] else block
+        if len(candidate) <= limit or not chunks[-1]:
+            chunks[-1] = candidate
+        else:
+            chunks.append(block)
+    return chunks
 
 
 def strip_leading_mentions(text: str) -> str:
@@ -91,52 +100,7 @@ def _campaign_from_text(text: str) -> CampaignInput:
 
 
 def _render_report(report: Any) -> str:
-    lines = [
-        f"## AdProof preflight: **{report.final_decision.value}**",
-        f"Audit `{report.audit_id}` · workflow {report.workflow_status.value} · "
-        f"repair verified: {'yes' if report.repair_verified else 'no'}",
-        "",
-        f"**Basis:** {report.final_decision_basis}",
-    ]
-    if report.original_audit:
-        lines.extend(["", f"### Original audit — {report.original_audit.decision.value}"])
-        lines.extend(_render_issues(report.original_audit.issues))
-    if report.repair_proposal:
-        lines.extend(["", "### Proposed repair (copy only)"])
-        lines.extend(
-            f"> {line}" for line in report.repair_proposal.repaired_copy.splitlines() or [""]
-        )
-        if report.repair_proposal.image_edit_instructions:
-            lines.extend(
-                [
-                    "",
-                    "Image issues a copy edit cannot fix:",
-                    *(f"- {item}" for item in report.repair_proposal.image_edit_instructions),
-                ]
-            )
-    if report.revised_audit:
-        lines.extend(["", f"### Independent re-check — {report.revised_audit.decision.value}"])
-        if report.revised_audit.issues:
-            lines.extend(_render_issues(report.revised_audit.issues))
-        else:
-            lines.append("No unresolved issues within the checked scope.")
-    if report.errors:
-        notes = list(dict.fromkeys((error.code.value, error.message) for error in report.errors))
-        lines.extend(["", "### Processing notes"])
-        lines.extend(f"- `{code}` — {message}" for code, message in notes)
-    lines.extend(["", "---", "", _SCOPE_LINE])
-    return "\n".join(lines)
-
-
-def _render_issues(issues: list[Issue]) -> list[str]:
-    lines = []
-    for number, issue in enumerate(issues, start=1):
-        category = issue.category.value.replace("_", " ").title()
-        line = f"{number}. **{category}** ({issue.action.value.lower()}) — {issue.explanation}"
-        if issue.policy_reference:
-            line += f" · _Rule: {issue.policy_reference}_"
-        lines.append(line)
-    return lines
+    return render_report(report)
 
 
 def _help_message() -> str:
@@ -166,6 +130,14 @@ def _welcome_message() -> str:
             _SCOPE_LINE,
         ]
     )
+
+
+def _safe_text_card_action(text: str):
+    """Return a text-echoed card action, None if absent, or False if malformed."""
+    try:
+        return card_action_from_text(text)
+    except ValueError:
+        return False
 
 
 def run() -> None:
@@ -299,14 +271,17 @@ def run() -> None:
         elif lowered == "example":
             example_path = root / "schemas/examples/CampaignInput.json"
             reply = "```json\n" + example_path.read_text(encoding="utf-8").strip() + "\n```"
-        elif message.content and any(
-            isinstance(item, MetadataContent)
-            and item.metadata.get("card_protocol_version") == "1"
-            and "card_kind" not in item.metadata
-            for item in message.content
+        elif (text_card_action := _safe_text_card_action(text)) is not False and (
+            text_card_action is not None
+            or any(
+                isinstance(item, MetadataContent)
+                and item.metadata.get("card_protocol_version") == "1"
+                and "card_kind" not in item.metadata
+                for item in message.content
+            )
         ):
             try:
-                action = extract_card_action(message)
+                action = text_card_action or extract_card_action(message)
                 if action is None:
                     reply = "Card action was not recognized."
                 else:
@@ -340,15 +315,11 @@ def run() -> None:
                 reply = "No audit with that ID is available to this chat session."
             elif command.casefold() == "status":
                 reply = f"**Audit** `{audit_id.strip()}`: {stored['state']}"
-                report_data = stored.get("payload", {}).get("report")
-                if report_data:
-                    result_card = create_result_card(AuditReport.model_validate(report_data))
             else:
                 report = stored.get("payload", {}).get("report")
                 if report:
                     parsed_report = AuditReport.model_validate(report)
                     reply = _render_report(parsed_report)
-                    result_card = create_result_card(parsed_report)
                 else:
                     reply = "No report is available yet."
         else:
@@ -379,7 +350,6 @@ def run() -> None:
                     reply = "The per-owner concurrent-audit limit is currently full."
                 else:
                     reply = _render_report(report)
-                    result_card = create_result_card(report)
             except Exception as exc:
                 record_event("audit_failed", role="orchestrator", result=type(exc).__name__)
                 reply = f"Request could not be processed ({type(exc).__name__}). Send `help` for accepted inputs."
