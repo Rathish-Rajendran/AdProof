@@ -41,12 +41,17 @@ class HealthResponse(Model):
     status: str
 
 
+_LEADING_MENTIONS = re.compile(r"^(?:\s*@[\w.\-]+[,:]?)+\s*")
 _FENCED_JSON = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.IGNORECASE | re.DOTALL)
 _owner_limiter = OwnerAuditLimiter(limit=2)
 
 
 def _text_chunks(text: str) -> list[str]:
     return [text[index : index + 3600] for index in range(0, len(text), 3600)] or [""]
+
+
+def strip_leading_mentions(text: str) -> str:
+    return _LEADING_MENTIONS.sub("", text, count=1).strip()
 
 
 def _campaign_from_text(text: str) -> CampaignInput:
@@ -173,7 +178,7 @@ def run() -> None:
     @chat_protocol.on_message(ChatMessage)
     async def handle_chat(ctx: Context, sender: str, message: ChatMessage) -> None:
         await ctx.send(sender, ChatAcknowledgement(acknowledged_msg_id=message.msg_id))
-        text = message.text().strip()
+        text = strip_leading_mentions(message.text())
         session_id = str(ctx.session)
         digest = hashlib.sha256(
             json.dumps(message.dict(), sort_keys=True, default=str).encode("utf-8")
