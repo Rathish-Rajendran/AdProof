@@ -1,0 +1,314 @@
+{
+  "$defs": {
+    "Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "ad_text": {
+          "$ref": "#/$defs/CoverageItem"
+        },
+        "image": {
+          "$ref": "#/$defs/CoverageItem"
+        },
+        "landing_page": {
+          "$ref": "#/$defs/CoverageItem"
+        },
+        "platform_policy": {
+          "$ref": "#/$defs/CoverageItem"
+        },
+        "supporting_documents": {
+          "$ref": "#/$defs/CoverageItem"
+        }
+      },
+      "required": [
+        "ad_text",
+        "landing_page",
+        "supporting_documents",
+        "image",
+        "platform_policy"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "CoverageItem": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "status": {
+          "$ref": "#/$defs/CoverageStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "CoverageItem",
+      "type": "object"
+    },
+    "CoverageStatus": {
+      "enum": [
+        "CHECKED",
+        "PARTIAL",
+        "NOT_CHECKED",
+        "FAILED",
+        "NOT_APPLICABLE"
+      ],
+      "title": "CoverageStatus",
+      "type": "string"
+    },
+    "Decision": {
+      "enum": [
+        "PASS",
+        "FIX_REQUIRED",
+        "BLOCK",
+        "HUMAN_REVIEW"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "Issue": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/IssueAction"
+        },
+        "category": {
+          "$ref": "#/$defs/IssueCategory"
+        },
+        "claim_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Id"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "policy_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Reference"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "subtype": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subtype"
+        },
+        "suggested_fix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Fix"
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "severity",
+        "explanation",
+        "action"
+      ],
+      "title": "Issue",
+      "type": "object"
+    },
+    "IssueAction": {
+      "enum": [
+        "FIX",
+        "REVIEW",
+        "BLOCK"
+      ],
+      "title": "IssueAction",
+      "type": "string"
+    },
+    "IssueCategory": {
+      "enum": [
+        "UNSUPPORTED_OBJECTIVE_CLAIM",
+        "PRICE_DISCOUNT_MISMATCH",
+        "UNVERIFIED_ENDORSEMENT",
+        "MISSING_REQUIRED_DISCLOSURE",
+        "AD_LANDING_PAGE_CONTRADICTION"
+      ],
+      "title": "IssueCategory",
+      "type": "string"
+    },
+    "Severity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "TypedError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/TypedErrorCode"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "TypedError",
+      "type": "object"
+    },
+    "TypedErrorCode": {
+      "enum": [
+        "MODEL_UNAVAILABLE",
+        "MODEL_AUTH",
+        "MODEL_MALFORMED_OUTPUT",
+        "BUDGET_EXHAUSTED",
+        "TIMEOUT",
+        "TASK_TIMEOUT",
+        "PAYLOAD_TOO_LARGE",
+        "WORKFLOW_INTERRUPTED",
+        "SOURCE_UNAVAILABLE",
+        "UNSAFE_SOURCE",
+        "SOURCE_TOO_LARGE",
+        "INVALID_IMAGE",
+        "IMAGE_TOO_LARGE",
+        "INVALID_EVIDENCE",
+        "UNSUPPORTED_CONTEXT",
+        "INTERNAL"
+      ],
+      "title": "TypedErrorCode",
+      "type": "string"
+    },
+    "WorkflowStatus": {
+      "enum": [
+        "COMPLETED",
+        "PARTIAL",
+        "FAILED"
+      ],
+      "title": "WorkflowStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "coverage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Coverage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/TypedError"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "final_decision": {
+      "$ref": "#/$defs/Decision"
+    },
+    "final_decision_basis": {
+      "title": "Final Decision Basis",
+      "type": "string"
+    },
+    "repair_verified": {
+      "title": "Repair Verified",
+      "type": "boolean"
+    },
+    "selected_candidate_id": {
+      "title": "Selected Candidate Id",
+      "type": "string"
+    },
+    "unresolved_issues": {
+      "items": {
+        "$ref": "#/$defs/Issue"
+      },
+      "title": "Unresolved Issues",
+      "type": "array"
+    },
+    "workflow_status": {
+      "$ref": "#/$defs/WorkflowStatus"
+    }
+  },
+  "required": [
+    "selected_candidate_id",
+    "final_decision",
+    "final_decision_basis",
+    "workflow_status",
+    "repair_verified"
+  ],
+  "title": "ReportSelection",
+  "type": "object"
+}

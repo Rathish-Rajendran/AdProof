@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "ClaimSource": {
+      "enum": [
+        "ad_text",
+        "image"
+      ],
+      "title": "ClaimSource",
+      "type": "string"
+    },
+    "ClaimStatus": {
+      "enum": [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "title": "ClaimStatus",
+      "type": "string"
+    },
+    "ClaimType": {
+      "enum": [
+        "price",
+        "discount",
+        "quantitative_specification",
+        "performance",
+        "health",
+        "comparison",
+        "endorsement",
+        "guarantee",
+        "environmental",
+        "urgency_scarcity",
+        "other_objective"
+      ],
+      "title": "ClaimType",
+      "type": "string"
+    },
+    "EvidenceQuality": {
+      "enum": [
+        "DIRECT",
+        "QUALIFIED",
+        "WEAK",
+        "NONE"
+      ],
+      "title": "EvidenceQuality",
+      "type": "string"
+    },
+    "LandingPageConsistency": {
+      "enum": [
+        "MATCH",
+        "MISMATCH",
+        "NOT_FOUND",
+        "NOT_ASSESSED"
+      ],
+      "title": "LandingPageConsistency",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "claim": {
+      "title": "Claim",
+      "type": "string"
+    },
+    "claim_type": {
+      "$ref": "#/$defs/ClaimType"
+    },
+    "conditions": {
+      "additionalProperties": true,
+      "title": "Conditions",
+      "type": "object"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "derivation": {
+      "additionalProperties": true,
+      "title": "Derivation",
+      "type": "object"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "evidence_quality": {
+      "$ref": "#/$defs/EvidenceQuality",
+      "default": "NONE"
+    },
+    "explanation": {
+      "title": "Explanation",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "landing_page_consistency": {
+      "$ref": "#/$defs/LandingPageConsistency",
+      "default": "NOT_ASSESSED"
+    },
+    "location": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Location"
+    },
+    "observation_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observation Id"
+    },
+    "original_wording": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Original Wording"
+    },
+    "source": {
+      "$ref": "#/$defs/ClaimSource"
+    },
+    "status": {
+      "$ref": "#/$defs/ClaimStatus"
+    },
+    "uncertainty": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Uncertainty"
+    }
+  },
+  "required": [
+    "id",
+    "claim",
+    "source",
+    "claim_type",
+    "status",
+    "explanation"
+  ],
+  "title": "Claim",
+  "type": "object"
+}

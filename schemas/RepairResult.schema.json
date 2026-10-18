@@ -1,0 +1,165 @@
+{
+  "$defs": {
+    "RepairChange": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "title": "Before",
+          "type": "string"
+        },
+        "issue_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Issue Ids",
+          "type": "array"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "issue_ids",
+        "before",
+        "after",
+        "rationale"
+      ],
+      "title": "RepairChange",
+      "type": "object"
+    },
+    "TypedError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/TypedErrorCode"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "TypedError",
+      "type": "object"
+    },
+    "TypedErrorCode": {
+      "enum": [
+        "MODEL_UNAVAILABLE",
+        "MODEL_AUTH",
+        "MODEL_MALFORMED_OUTPUT",
+        "BUDGET_EXHAUSTED",
+        "TIMEOUT",
+        "TASK_TIMEOUT",
+        "PAYLOAD_TOO_LARGE",
+        "WORKFLOW_INTERRUPTED",
+        "SOURCE_UNAVAILABLE",
+        "UNSAFE_SOURCE",
+        "SOURCE_TOO_LARGE",
+        "INVALID_IMAGE",
+        "IMAGE_TOO_LARGE",
+        "INVALID_EVIDENCE",
+        "UNSUPPORTED_CONTEXT",
+        "INTERNAL"
+      ],
+      "title": "TypedErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "audit_id": {
+      "title": "Audit Id",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "changes": {
+      "items": {
+        "$ref": "#/$defs/RepairChange"
+      },
+      "title": "Changes",
+      "type": "array"
+    },
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/TypedError"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "image_edit_instructions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Image Edit Instructions",
+      "type": "array"
+    },
+    "model_version": {
+      "title": "Model Version",
+      "type": "string"
+    },
+    "original_candidate_id": {
+      "title": "Original Candidate Id",
+      "type": "string"
+    },
+    "prompt_version": {
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "repaired_copy": {
+      "maxLength": 4096,
+      "title": "Repaired Copy",
+      "type": "string"
+    },
+    "unresolved_issue_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Issue Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "audit_id",
+    "original_candidate_id",
+    "candidate_id",
+    "repaired_copy",
+    "model_version",
+    "prompt_version"
+  ],
+  "title": "RepairResult",
+  "type": "object"
+}

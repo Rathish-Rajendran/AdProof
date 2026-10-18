@@ -1,0 +1,141 @@
+{
+  "$defs": {
+    "CampaignContext": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audience"
+        },
+        "jurisdiction": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jurisdiction"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Language"
+        },
+        "platform": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Platform"
+        },
+        "product_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Product Category"
+        }
+      },
+      "title": "CampaignContext",
+      "type": "object"
+    },
+    "Phase": {
+      "enum": [
+        "ORIGINAL",
+        "REPAIRED"
+      ],
+      "title": "Phase",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "ad_copy": {
+      "maxLength": 4096,
+      "title": "Ad Copy",
+      "type": "string"
+    },
+    "asset_ref": {
+      "title": "Asset Ref",
+      "type": "string"
+    },
+    "campaign_id": {
+      "title": "Campaign Id",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "context": {
+      "$ref": "#/$defs/CampaignContext"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "creative_version": {
+      "minimum": 1,
+      "title": "Creative Version",
+      "type": "integer"
+    },
+    "model_input_sha256": {
+      "title": "Model Input Sha256",
+      "type": "string"
+    },
+    "phase": {
+      "$ref": "#/$defs/Phase"
+    },
+    "source_image_sha256": {
+      "title": "Source Image Sha256",
+      "type": "string"
+    },
+    "transformation_metadata": {
+      "additionalProperties": true,
+      "title": "Transformation Metadata",
+      "type": "object"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "candidate_id",
+    "creative_version",
+    "phase",
+    "ad_copy",
+    "source_image_sha256",
+    "model_input_sha256",
+    "asset_ref",
+    "context"
+  ],
+  "title": "CreativeCandidate",
+  "type": "object"
+}

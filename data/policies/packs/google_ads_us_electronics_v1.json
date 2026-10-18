@@ -1,0 +1,48 @@
+{
+  "pack_id": "google_ads_us_electronics_v1",
+  "version": "1.0.0",
+  "catalog_version": "2026-10-18.1",
+  "publisher": "AdProof",
+  "platform": "google_ads",
+  "jurisdiction": "US",
+  "language": "en",
+  "category": "electronics",
+  "audience": "adults",
+  "freshness_days": 7,
+  "required_checks": [
+    "ad_text_claim_extraction",
+    "image_inspection",
+    "evidence_quote_validation",
+    "price_discount_arithmetic",
+    "landing_page_consistency",
+    "specification_substantiation",
+    "endorsement_substantiation",
+    "policy_rule_evaluation"
+  ],
+  "required_rule_ids": [
+    "GADS_MISLEADING_AD_DESIGN_AD_LANDING_INCONSISTENCY",
+    "GADS_UNRELIABLE_CLAIMS_INACCURATE_CLAIM"
+  ],
+  "optional_rule_ids": [
+    "GADS_DISHONEST_PRICING_MISLEADING_IMPRESSION",
+    "GADS_UNRELIABLE_CLAIMS_TESTIMONIAL_DISCLAIMER",
+    "FTC_AD_SUBSTANTIATION_POLICY_STATEMENT",
+    "FTC_ENDORSEMENT_GUIDES_RESOURCES"
+  ],
+  "exclusions": [
+    "Payment-model / total-cost / shipping / tax disclosure (GADS_DISHONEST_PRICING_PAYMENT_MODEL_DISCLOSURE not implemented)",
+    "Health, weight-loss, financial, political and climate claims (out of scope -> HUMAN_REVIEW)",
+    "Misleading ad design other than ad/landing-page inconsistency (fake buttons, system-notification mimicry, ad labeling)",
+    "Clickbait, manipulated media, unclear relevance, unavailable offers, business identity/impersonation",
+    "Trademark, restricted content, editorial and destination-quality policies",
+    "Synthetic/AI-content disclosure (disabled unless a specific applicable rule is established)",
+    "Legal (FTC/state) compliance determination of any kind"
+  ],
+  "review": {
+    "kind": "ENGINEERING",
+    "reviewer": "Devin (AI engineering agent)",
+    "role": "automated engineering review — NOT human or legal review",
+    "reviewed_at": "2026-10-18T00:09:36Z"
+  },
+  "notes": "PASS under this pack means only that the listed required checks completed with no unresolved issues for the supplied sources. It is not Google Ads approval or legal advice."
+}

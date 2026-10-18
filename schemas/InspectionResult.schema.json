@@ -1,0 +1,232 @@
+{
+  "$defs": {
+    "ImageRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Height",
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Width",
+          "type": "number"
+        },
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "title": "ImageRegion",
+      "type": "object"
+    },
+    "InspectionStatus": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "FAILED",
+        "NOT_PROVIDED"
+      ],
+      "title": "InspectionStatus",
+      "type": "string"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ObservationKind"
+        },
+        "observation_id": {
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageRegion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "uncertainty_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uncertainty Note"
+        }
+      },
+      "required": [
+        "observation_id",
+        "kind",
+        "text"
+      ],
+      "title": "Observation",
+      "type": "object"
+    },
+    "ObservationKind": {
+      "enum": [
+        "visible_text",
+        "visual_observation",
+        "inferred_claim"
+      ],
+      "title": "ObservationKind",
+      "type": "string"
+    },
+    "TypedError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/TypedErrorCode"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "TypedError",
+      "type": "object"
+    },
+    "TypedErrorCode": {
+      "enum": [
+        "MODEL_UNAVAILABLE",
+        "MODEL_AUTH",
+        "MODEL_MALFORMED_OUTPUT",
+        "BUDGET_EXHAUSTED",
+        "TIMEOUT",
+        "TASK_TIMEOUT",
+        "PAYLOAD_TOO_LARGE",
+        "WORKFLOW_INTERRUPTED",
+        "SOURCE_UNAVAILABLE",
+        "UNSAFE_SOURCE",
+        "SOURCE_TOO_LARGE",
+        "INVALID_IMAGE",
+        "IMAGE_TOO_LARGE",
+        "INVALID_EVIDENCE",
+        "UNSUPPORTED_CONTEXT",
+        "INTERNAL"
+      ],
+      "title": "TypedErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/TypedError"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "image_sha256": {
+      "title": "Image Sha256",
+      "type": "string"
+    },
+    "model_version": {
+      "title": "Model Version",
+      "type": "string"
+    },
+    "observations": {
+      "items": {
+        "$ref": "#/$defs/Observation"
+      },
+      "title": "Observations",
+      "type": "array"
+    },
+    "prompt_version": {
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "readability": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Readability"
+    },
+    "status": {
+      "$ref": "#/$defs/InspectionStatus"
+    },
+    "uncertainty": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Uncertainty",
+      "type": "array"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "image_sha256",
+    "model_version",
+    "prompt_version",
+    "status"
+  ],
+  "title": "InspectionResult",
+  "type": "object"
+}

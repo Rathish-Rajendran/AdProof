@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "IssueAction": {
+      "enum": [
+        "FIX",
+        "REVIEW",
+        "BLOCK"
+      ],
+      "title": "IssueAction",
+      "type": "string"
+    },
+    "IssueCategory": {
+      "enum": [
+        "UNSUPPORTED_OBJECTIVE_CLAIM",
+        "PRICE_DISCOUNT_MISMATCH",
+        "UNVERIFIED_ENDORSEMENT",
+        "MISSING_REQUIRED_DISCLOSURE",
+        "AD_LANDING_PAGE_CONTRADICTION"
+      ],
+      "title": "IssueCategory",
+      "type": "string"
+    },
+    "Severity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/IssueAction"
+    },
+    "category": {
+      "$ref": "#/$defs/IssueCategory"
+    },
+    "claim_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Claim Id"
+    },
+    "explanation": {
+      "title": "Explanation",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "policy_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Policy Reference"
+    },
+    "severity": {
+      "$ref": "#/$defs/Severity"
+    },
+    "subtype": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subtype"
+    },
+    "suggested_fix": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suggested Fix"
+    }
+  },
+  "required": [
+    "id",
+    "category",
+    "severity",
+    "explanation",
+    "action"
+  ],
+  "title": "Issue",
+  "type": "object"
+}

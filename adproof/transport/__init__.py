@@ -1,0 +1,1 @@
+"""Authenticated specialist message envelopes."""

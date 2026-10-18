@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "TypedErrorCode": {
+      "enum": [
+        "MODEL_UNAVAILABLE",
+        "MODEL_AUTH",
+        "MODEL_MALFORMED_OUTPUT",
+        "BUDGET_EXHAUSTED",
+        "TIMEOUT",
+        "TASK_TIMEOUT",
+        "PAYLOAD_TOO_LARGE",
+        "WORKFLOW_INTERRUPTED",
+        "SOURCE_UNAVAILABLE",
+        "UNSAFE_SOURCE",
+        "SOURCE_TOO_LARGE",
+        "INVALID_IMAGE",
+        "IMAGE_TOO_LARGE",
+        "INVALID_EVIDENCE",
+        "UNSUPPORTED_CONTEXT",
+        "INTERNAL"
+      ],
+      "title": "TypedErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/TypedErrorCode"
+    },
+    "details": {
+      "additionalProperties": true,
+      "title": "Details",
+      "type": "object"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "retryable": {
+      "default": false,
+      "title": "Retryable",
+      "type": "boolean"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source"
+    }
+  },
+  "required": [
+    "code",
+    "message"
+  ],
+  "title": "TypedError",
+  "type": "object"
+}

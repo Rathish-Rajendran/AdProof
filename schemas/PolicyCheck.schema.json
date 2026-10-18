@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "PolicyEnforcement": {
+      "enum": [
+        "FIX",
+        "REVIEW",
+        "BLOCK"
+      ],
+      "title": "PolicyEnforcement",
+      "type": "string"
+    },
+    "PolicyReviewStatus": {
+      "enum": [
+        "DRAFT",
+        "ACTIVE",
+        "DISABLED"
+      ],
+      "title": "PolicyReviewStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "applicable": {
+      "title": "Applicable",
+      "type": "boolean"
+    },
+    "checked": {
+      "title": "Checked",
+      "type": "boolean"
+    },
+    "enforcement": {
+      "$ref": "#/$defs/PolicyEnforcement"
+    },
+    "finding": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finding"
+    },
+    "predicate_established": {
+      "default": false,
+      "title": "Predicate Established",
+      "type": "boolean"
+    },
+    "review_status": {
+      "$ref": "#/$defs/PolicyReviewStatus"
+    },
+    "rule_id": {
+      "title": "Rule Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "rule_id",
+    "applicable",
+    "review_status",
+    "enforcement",
+    "checked"
+  ],
+  "title": "PolicyCheck",
+  "type": "object"
+}

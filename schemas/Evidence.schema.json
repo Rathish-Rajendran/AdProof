@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "conditions": {
+      "additionalProperties": true,
+      "title": "Conditions",
+      "type": "object"
+    },
+    "content_sha256": {
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "document_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Document Id"
+    },
+    "excerpt": {
+      "title": "Excerpt",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "locator": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Locator"
+    },
+    "retrieved_at": {
+      "format": "date-time",
+      "title": "Retrieved At",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "source_type": {
+      "title": "Source Type",
+      "type": "string"
+    },
+    "source_url": {
+      "title": "Source Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "source_url",
+    "excerpt",
+    "source_type",
+    "retrieved_at",
+    "snapshot_id",
+    "content_sha256"
+  ],
+  "title": "Evidence",
+  "type": "object"
+}

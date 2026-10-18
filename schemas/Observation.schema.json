@@ -1,0 +1,94 @@
+{
+  "$defs": {
+    "ImageRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Height",
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Width",
+          "type": "number"
+        },
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "title": "ImageRegion",
+      "type": "object"
+    },
+    "ObservationKind": {
+      "enum": [
+        "visible_text",
+        "visual_observation",
+        "inferred_claim"
+      ],
+      "title": "ObservationKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "$ref": "#/$defs/ObservationKind"
+    },
+    "observation_id": {
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "region": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ImageRegion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    },
+    "uncertainty_note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Uncertainty Note"
+    }
+  },
+  "required": [
+    "observation_id",
+    "kind",
+    "text"
+  ],
+  "title": "Observation",
+  "type": "object"
+}

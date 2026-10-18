@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "source_commit": "d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe",
+  "assets": {
+    "aerobeat-neutral.png": {
+      "url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat-neutral.png",
+      "sha256": "0d1f1511ba67d98a437601809c83bfbf8a6068bf8db3c7b9bd2bf04beb41ec35",
+      "mime_type": "image/png"
+    },
+    "aerobeat-only49.png": {
+      "url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat-only49.png",
+      "sha256": "fd9246ae031608ebf31c3bcefdf98b535de18e6c358684dddde2ab7a0528a507",
+      "mime_type": "image/png"
+    },
+    "aerobeat-blurry.png": {
+      "url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat-blurry.png",
+      "sha256": "dd1beabf50577b748a17411fb36ff116904da9a4c5c4afcde6723092211039a4",
+      "mime_type": "image/png"
+    },
+    "aerobeat-neutral.jpg": {
+      "url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat-neutral.jpg",
+      "sha256": "f4f47d53bdcd8c189934e680d612a0a4a4a555f9d762c590437c8e8b9132e71e",
+      "mime_type": "image/jpeg"
+    },
+    "aerobeat.html": {
+      "url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat.html",
+      "sha256": "2b2cf4d6a94ce64a5e3ddbfc89cff1989eb635994f554e4443caf0050dc63b44",
+      "mime_type": "text/plain"
+    }
+  }
+}

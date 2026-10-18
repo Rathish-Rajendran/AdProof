@@ -1,0 +1,62 @@
+services:
+  verifier:
+    build: .
+    command: ["uv", "run", "python", "-m", "agents.verifier.main"]
+    env_file: .env
+    environment:
+      ADPROOF_RUNTIME_DIR: /runtime
+      VERIFIER_HOST: verifier
+      ORCHESTRATOR_HOST: orchestrator
+      REMEDIATOR_HOST: remediator
+    volumes:
+      - runtime:/runtime
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  remediator:
+    build: .
+    command: ["uv", "run", "python", "-m", "agents.remediator.main"]
+    env_file: .env
+    environment:
+      ADPROOF_RUNTIME_DIR: /runtime
+      VERIFIER_HOST: verifier
+      ORCHESTRATOR_HOST: orchestrator
+      REMEDIATOR_HOST: remediator
+    volumes:
+      - runtime:/runtime
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  orchestrator:
+    build: .
+    command: ["uv", "run", "python", "-m", "agents.orchestrator.main"]
+    env_file: .env
+    environment:
+      ADPROOF_RUNTIME_DIR: /runtime
+      ADPROOF_MAILBOX_ENABLED: ${ADPROOF_MAILBOX_ENABLED:-0}
+      ORCHESTRATOR_HOST: orchestrator
+      VERIFIER_HOST: verifier
+      REMEDIATOR_HOST: remediator
+    volumes:
+      - runtime:/runtime
+    ports:
+      - "8100:8100"
+    depends_on:
+      verifier:
+        condition: service_healthy
+      remediator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  runtime:
