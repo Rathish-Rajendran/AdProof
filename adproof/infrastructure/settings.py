@@ -9,6 +9,8 @@ from typing import ClassVar
 
 DEFAULT_MODEL_DEFAULT = "gemini:gemini-3.5-flash"
 DEFAULT_MODEL_IMAGE_INSPECTION = "gemini:gemini-3.5-flash"
+DEFAULT_MODEL_CLAIM_EXTRACTION = "gemini:gemini-3.1-pro-preview"
+DEFAULT_MODEL_EVIDENCE_ASSESSMENT = "gemini:gemini-3.1-pro-preview"
 MODEL_PURPOSES = (
     "image_inspection",
     "claim_extraction",
@@ -75,6 +77,16 @@ class Settings:
             object.__setattr__(self, "ollama_model", default_spec.model)
         elif default_spec.provider == "gemini":
             object.__setattr__(self, "gemini_model", default_spec.model)
+
+        if default_spec.provider == "gemini":
+            if self.model_claim_extraction is None:
+                object.__setattr__(self, "model_claim_extraction", DEFAULT_MODEL_CLAIM_EXTRACTION)
+            if self.model_evidence_assessment is None:
+                object.__setattr__(
+                    self,
+                    "model_evidence_assessment",
+                    DEFAULT_MODEL_EVIDENCE_ASSESSMENT,
+                )
 
         for purpose in MODEL_PURPOSES:
             field = self._PURPOSE_FIELDS[purpose]

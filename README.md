@@ -68,15 +68,18 @@ if [ ! -f .env ]; then cp .env.example .env; fi
 $EDITOR .env
 ```
 
-The default model spec is `ADPROOF_MODEL_DEFAULT=gemini:gemini-3.5-flash`; all jobs, including image inspection, default to Gemini. Specs use `<provider>:<model>` and split at the first colon, so Ollama tags such as `qwen2.5:3b` work.
+The default model spec is `ADPROOF_MODEL_DEFAULT=gemini:gemini-3.5-flash`; all jobs, including image inspection, default to Gemini. With a Gemini default, claim extraction and evidence assessment use Gemini Pro while writing and fixing remain on Flash. Specs use `<provider>:<model>` and split at the first colon, so Ollama tags such as `qwen2.5:3b` work.
 
-| Job | Environment variable | Default | Rationale |
-|---|---|---|---|
-| Image inspection | `ADPROOF_MODEL_IMAGE_INSPECTION` | `gemini:gemini-3.5-flash` | The only job that reads image pixels, so it uses a vision-capable model. |
-| Claim extraction | `ADPROOF_MODEL_CLAIM_EXTRACTION` | `gemini:gemini-3.5-flash` via the default | Text-only claim extraction. |
-| Evidence assessment | `ADPROOF_MODEL_EVIDENCE_ASSESSMENT` | `gemini:gemini-3.5-flash` via the default | Text-only evidence and quote checking. |
-| Copy remediation | `ADPROOF_MODEL_COPY_REMEDIATION` | `gemini:gemini-3.5-flash` via the default | Shares the text model; application code validates numeric changes. |
-| Ad generation | `ADPROOF_MODEL_AD_GENERATION` | `gemini:gemini-3.5-flash` via the default | Generates copy using retrieved company-corpus chunks. |
+| Job | Default model | Why |
+|---|---|---|
+| Default (`ADPROOF_MODEL_DEFAULT`) | `gemini:gemini-3.5-flash` | Fast, lower-cost baseline for jobs that do not have a specialized default. |
+| Claim extraction (`ADPROOF_MODEL_CLAIM_EXTRACTION`) | `gemini:gemini-3.1-pro-preview` | Stronger verifier model, independent of the Flash writer. |
+| Evidence assessment (`ADPROOF_MODEL_EVIDENCE_ASSESSMENT`) | `gemini:gemini-3.1-pro-preview` | Evidence judgment is the hardest step; a different model from the writer reduces shared blind spots. |
+| Image inspection (`ADPROOF_MODEL_IMAGE_INSPECTION`) | `gemini:gemini-3.5-flash` | The only job that reads image pixels. |
+| Copy remediation (`ADPROOF_MODEL_COPY_REMEDIATION`) | `gemini:gemini-3.5-flash` | Fast, lower-cost fixing; application code validates numeric changes. |
+| Ad generation (`ADPROOF_MODEL_AD_GENERATION`) | `gemini:gemini-3.5-flash` | Fast, lower-cost writing grounded in retrieved company-corpus chunks. |
+
+The verifier jobs use Pro because evidence judgment is the hardest step; using a different model from the writer helps reduce shared blind spots. Writing and fixing use Flash for speed and cost. Pro is a preview model and adds latency. These Pro defaults apply only when the resolved default provider is Gemini; with an Ollama default, verifier jobs inherit `ADPROOF_MODEL_DEFAULT`. An explicit per-job spec always wins.
 
 The optional `uv run python -m adproof.generate "<prompt>" --offline` command uses deterministic fake generation and verification models while exercising the local corpus retrieval and repair workflow. Build the local hybrid index with `uv run python -m adproof.rag.index build`.
 

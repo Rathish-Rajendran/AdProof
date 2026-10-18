@@ -16,22 +16,25 @@ uv run python -m adproof.demo --mode mock
 uv run python -m adproof.generate "Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults" --offline
 ```
 
-The offline suite requires no keys. MOCK is an explicit deterministic demonstration only. LIVE defaults to `gemini:gemini-3.5-flash` for all jobs and requires a billed `GEMINI_API_KEY`. Ollama with the Qwen 3B pair is an optional local alternative; install it from the [official guide](https://ollama.com/download) and pull both models if needed:
+The offline suite requires no keys. MOCK is an explicit deterministic demonstration only. LIVE uses `gemini:gemini-3.1-pro-preview` for claim extraction and evidence assessment, and `gemini:gemini-3.5-flash` for the other jobs when the default provider is Gemini; it requires a billed `GEMINI_API_KEY`. Ollama with the Qwen 3B pair is an optional local alternative; install it from the [official guide](https://ollama.com/download) and pull both models if needed:
 
 ```sh
 ollama pull qwen2.5:3b
 ollama pull qwen2.5vl:3b
 ```
 
-Model specs use `<provider>:<model>` and split at the first colon. `ADPROOF_MODEL_DEFAULT` and `ADPROOF_MODEL_IMAGE_INSPECTION` default to `gemini:gemini-3.5-flash`; claim extraction, evidence assessment, and copy remediation inherit the default unless overridden.
+Model specs use `<provider>:<model>` and split at the first colon. `ADPROOF_MODEL_DEFAULT` and `ADPROOF_MODEL_IMAGE_INSPECTION` default to `gemini:gemini-3.5-flash`. With a Gemini default, claim extraction and evidence assessment use Gemini Pro; writing and fixing use Flash.
 
-| Job | Environment variable | Default | Rationale |
+| Job | Default model | Why |
 |---|---|---|---|
-| Image inspection | `ADPROOF_MODEL_IMAGE_INSPECTION` | `gemini:gemini-3.5-flash` | The only job that reads pixels, so it uses a vision-capable model. |
-| Claim extraction | `ADPROOF_MODEL_CLAIM_EXTRACTION` | `gemini:gemini-3.5-flash` via the default | Text-only claim extraction. |
-| Evidence assessment | `ADPROOF_MODEL_EVIDENCE_ASSESSMENT` | `gemini:gemini-3.5-flash` via the default | Text-only evidence and quote checking. |
-| Copy remediation | `ADPROOF_MODEL_COPY_REMEDIATION` | `gemini:gemini-3.5-flash` via the default | Shares the text model; code validates numbers. |
-| Ad generation | `ADPROOF_MODEL_AD_GENERATION` | `gemini:gemini-3.5-flash` via the default | Uses retrieved company-corpus chunks to ground generated copy. |
+| Default (`ADPROOF_MODEL_DEFAULT`) | `gemini:gemini-3.5-flash` | Fast, lower-cost baseline for jobs without a specialized default. |
+| Claim extraction (`ADPROOF_MODEL_CLAIM_EXTRACTION`) | `gemini:gemini-3.1-pro-preview` | Stronger verifier model, independent of the Flash writer. |
+| Evidence assessment (`ADPROOF_MODEL_EVIDENCE_ASSESSMENT`) | `gemini:gemini-3.1-pro-preview` | Evidence judgment is the hardest step; a different model from the writer reduces shared blind spots. |
+| Image inspection (`ADPROOF_MODEL_IMAGE_INSPECTION`) | `gemini:gemini-3.5-flash` | The only job that reads image pixels. |
+| Copy remediation (`ADPROOF_MODEL_COPY_REMEDIATION`) | `gemini:gemini-3.5-flash` | Fast, lower-cost fixing; code validates numbers. |
+| Ad generation (`ADPROOF_MODEL_AD_GENERATION`) | `gemini:gemini-3.5-flash` | Fast, lower-cost writing grounded in retrieved company-corpus chunks. |
+
+The verifier uses Pro because evidence judgment is the hardest step; using a different model from the writer helps reduce shared blind spots. Writing and fixing use Flash for speed and cost. Pro is a preview model and adds latency. These Pro defaults apply only when the resolved default provider is Gemini; with an Ollama default, verifier jobs inherit `ADPROOF_MODEL_DEFAULT`. An explicit per-job spec always wins.
 
 For optional local Qwen 3B, set `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b` and `ADPROOF_MODEL_IMAGE_INSPECTION=ollama:qwen2.5vl:3b`; the 3B local runs mostly ended in `HUMAN_REVIEW`. The 7B pair (`qwen2.5:7b` and `qwen2.5vl:7b`) is a higher-capacity local option, slower on CPU, and its partial results did not establish a quality improvement. The vision model is reserved for the job that reads pixels; repair shares the text model because code validates numbers. Gemini's configured model `gemini-3.5-flash` has been served as `gemini-3.6-flash` in live calls.
 
