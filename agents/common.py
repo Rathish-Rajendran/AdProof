@@ -86,7 +86,9 @@ def make_agent(
         ),
         "handle_messages_concurrently": concurrent,
     }
-    if not public_orchestrator:
+    if public_orchestrator:
+        agent_options["handle"] = os.getenv("ADPROOF_ORCHESTRATOR_HANDLE") or None
+    else:
         agent_options["endpoint"] = [own_endpoint]
     return Agent(**agent_options)
 

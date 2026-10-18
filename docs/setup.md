@@ -32,7 +32,9 @@ The transport proof command runs a test ACP client and verifies delayed replies 
 bash scripts/run_transport_proof.sh
 ```
 
-The mailbox switch is disabled by default. For Agentverse/ASI:One, set `ADPROOF_MAILBOX_ENABLED=1` and keep the orchestrator running on a reachable host. Specialists retain explicit local HTTP endpoints and a resolver map. The mailbox-mode local reachability proof passed; public discovery still requires mailbox creation and funded contract registration. See `docs/validation-status.md`.
+The mailbox switch is disabled by default. For Agentverse/ASI:One, set `ADPROOF_MAILBOX_ENABLED=1` and keep the orchestrator running on a reachable host. Specialists retain explicit local HTTP endpoints and a resolver map. The mailbox-mode local reachability proof passed. Connect the orchestrator mailbox through **Inspector → Connect → Mailbox**; successful Almanac API registration is sufficient, and on-chain contract registration is not required. See `docs/validation-status.md`.
+
+Optionally set `ADPROOF_ORCHESTRATOR_HANDLE` to publish a human-readable handle for the public orchestrator. Handles must be unique on Agentverse. After setting or changing it, re-run the Agentverse inspector's **Modify connection** / **Connect** flow for the orchestrator mailbox. ASI:One `@handle` support is unverified; use the full agent address unless tested.
 
 ## Docker Compose
 
