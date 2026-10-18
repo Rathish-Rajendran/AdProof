@@ -137,7 +137,13 @@ async def _run(prompt: str, offline: bool):
             offline=offline,
         )
     except ModelClientError as exc:
-        print(render_generation_failure(prompt, exc.error.message))
+        print(
+            render_generation_failure(
+                prompt,
+                exc.error.message,
+                attempt_violations=exc.error.details.get("attempt_violations"),
+            )
+        )
         return 0
     except Exception as exc:
         print(

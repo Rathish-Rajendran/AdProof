@@ -18,7 +18,13 @@ def test_empty_prompt_returns_a_fenced_json_error(capsys):
     assert asyncio.run(generate._run("   ", offline=False)) == 0
     result = _json_reply(capsys.readouterr().out)
 
-    assert result["request"] == "   "
+    assert result["request"] == {
+        "prompt": "",
+        "platform": "google_ads",
+        "jurisdiction": "US",
+        "language": "en",
+        "audience": "adults",
+    }
     assert result["final"] == {
         "decision": "HUMAN_REVIEW",
         "ad_copy": None,
@@ -38,6 +44,12 @@ def test_generator_failure_returns_a_fenced_json_error(monkeypatch, capsys):
                 code=TypedErrorCode.MODEL_UNAVAILABLE,
                 message="Model service unavailable.",
                 retryable=True,
+                details={
+                    "attempt_violations": [
+                        ["first deterministic violation"],
+                        ["second deterministic violation"],
+                    ]
+                },
             )
         )
 
@@ -50,8 +62,18 @@ def test_generator_failure_returns_a_fenced_json_error(monkeypatch, capsys):
     assert asyncio.run(generate._run("AeroBeat AB-01", offline=False)) == 0
     result = _json_reply(capsys.readouterr().out)
 
-    assert result["request"] == "AeroBeat AB-01"
+    assert result["request"] == {
+        "prompt": "AeroBeat AB-01",
+        "platform": "google_ads",
+        "jurisdiction": "US",
+        "language": "en",
+        "audience": "adults",
+    }
     assert result["final"]["decision"] == "HUMAN_REVIEW"
     assert result["final"]["ad_copy"] is None
     assert result["final"]["repair_verified"] is False
-    assert result["notes"] == ["Model service unavailable."]
+    assert result["notes"] == [
+        "Model service unavailable.",
+        "Attempt 1: first deterministic violation",
+        "Attempt 2: second deterministic violation",
+    ]

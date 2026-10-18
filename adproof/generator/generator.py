@@ -21,7 +21,7 @@ META_TERMS = re.compile(r"\b(?:meta|facebook|instagram)\b", re.IGNORECASE)
 
 class GenerationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    prompt: str = Field(min_length=1, max_length=2048)
+    prompt: str = Field(max_length=2048)
     platform: str = "google_ads"
     jurisdiction: str = "US"
     language: str = "en"
@@ -178,7 +178,7 @@ async def generate_ad(
                 ),
             )
         )
-    chunks = list(
+    grounding_chunks = list(
         {chunk.chunk_id: chunk for chunk in [*retrieved_chunks, *_brand_chunks(index)]}.values()
     )
     schema = GeneratedGoogleAd if request.platform == "google_ads" else GeneratedMetaAd
@@ -189,7 +189,8 @@ async def generate_ad(
         f"Use final_url exactly as {product.url}.",
         "REQUEST:\n" + request.model_dump_json(),
         "POLICY GUIDANCE:\n" + policy_guidance,
-        "RETRIEVED CHUNKS:\n" + "\n\n".join(f"{chunk.chunk_id}: {chunk.text}" for chunk in chunks),
+        "RETRIEVED CHUNKS:\n"
+        + "\n\n".join(f"{chunk.chunk_id}: {chunk.text}" for chunk in grounding_chunks),
         (
             "For Google Ads, provide 3-5 headlines of at most 30 characters and exactly 2 "
             "descriptions of at most 90 characters."
@@ -197,6 +198,7 @@ async def generate_ad(
             else "For Meta, provide primary_text and headline."
         ),
     ]
+    attempt_violations = []
     for attempt in range(2):
         response = await model.generate_json(
             prompt,
@@ -205,7 +207,7 @@ async def generate_ad(
             purpose="ad_generation",
         )
         ad = response.data
-        violations = _violations(ad, request, chunks, product.url)
+        violations = _violations(ad, request, grounding_chunks, product.url)
         if not violations:
             return {
                 "request": request.model_dump(mode="json"),
@@ -217,14 +219,16 @@ async def generate_ad(
                         "title": chunk.title,
                         "url": chunk.url,
                     }
-                    for chunk in chunks
+                    for chunk in grounding_chunks
                 ],
             }
+        attempt_violations.append(violations)
         if attempt == 0:
             prompt.append("Correct these deterministic violations:\n" + "\n".join(violations))
     raise ModelClientError(
         TypedError(
             code=TypedErrorCode.MODEL_MALFORMED_OUTPUT,
             message="Generated ad failed deterministic validation after one correction retry.",
+            details={"attempt_violations": attempt_violations},
         )
     )

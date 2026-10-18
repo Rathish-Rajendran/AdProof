@@ -459,7 +459,46 @@ async def verify_campaign(
         or request.image_inspection_status
         not in {InspectionStatus.COMPLETE, InspectionStatus.NOT_APPLICABLE}
     )
-    if material_uncertainty:
+    if request.context.platform != policy.pack.platform:
+        errors.append(
+            TypedError(
+                code=TypedErrorCode.UNSUPPORTED_CONTEXT,
+                message=(
+                    f"The requested platform {request.context.platform} is outside the supported "
+                    f"{policy.pack.platform} scope; a human review is required."
+                ),
+            )
+        )
+    if request.context.jurisdiction != policy.pack.jurisdiction:
+        errors.append(
+            TypedError(
+                code=TypedErrorCode.UNSUPPORTED_CONTEXT,
+                message=(
+                    f"The requested jurisdiction {request.context.jurisdiction} is outside the "
+                    f"supported {policy.pack.jurisdiction} scope; a human review is required."
+                ),
+            )
+        )
+    if request.context.audience != policy.pack.audience:
+        audience_message = (
+            "This ad targets minors, which is outside the supported adult-audience scope; "
+            "a human review is required."
+            if request.context.audience == "minors"
+            else "The requested audience is outside the supported scope; a human review is required."
+        )
+        errors.append(
+            TypedError(
+                code=TypedErrorCode.UNSUPPORTED_CONTEXT,
+                message=audience_message,
+            )
+        )
+    other_scope_mismatch = bool(
+        request.context.language != policy.pack.language
+        or request.context.product_category != policy.pack.category
+        or request.image_inspection_status
+        not in {InspectionStatus.COMPLETE, InspectionStatus.NOT_APPLICABLE}
+    )
+    if other_scope_mismatch:
         errors.append(
             TypedError(
                 code=TypedErrorCode.UNSUPPORTED_CONTEXT,

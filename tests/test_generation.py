@@ -199,3 +199,73 @@ async def test_generation_prompt_includes_brand_chunks_and_us_policy_guidance():
     assert "POLICY GUIDANCE" in model.prompt
     assert "FTC_DECEPTIVE_PRICING_FORMER_PRICE_REFERENCE" in model.prompt
     assert "brand-voice#1" in model.prompt
+
+
+@pytest.mark.asyncio
+async def test_brand_guidance_numbers_and_citations_count_as_generation_grounding():
+    brand_chunk = CorpusChunk(
+        "brand-voice#1",
+        "aerobeat-brand-voice",
+        "AeroBeat brand voice",
+        "Voice",
+        "https://aerobeat.example/brand/voice",
+        "A synthetic brand guideline suggests a 3-step setup.",
+        "brand-sha",
+    )
+
+    class GuidedIndex(FakeIndex):
+        def documents(self):
+            return [
+                *super().documents(),
+                CorpusDocument(
+                    "aerobeat-brand-voice",
+                    "AeroBeat brand voice",
+                    "https://aerobeat.example/brand/voice",
+                    "brand_guidance",
+                    "Synthetic brand guidelines",
+                    "brand-document-sha",
+                ),
+            ]
+
+        def chunks_for_documents(self, _doc_ids):
+            return [brand_chunk]
+
+    model = FakeModelClient(
+        [
+            _ad(
+                headlines=["AeroBeat AB-01", "3-step setup", "Save 25% today"],
+                sources=["brand-voice#1"],
+            )
+        ]
+    )
+    result = await generate_ad(
+        "Generate an ad for AeroBeat AB-01",
+        index=GuidedIndex(),
+        model=model,
+        deadline=datetime.now(UTC) + timedelta(minutes=1),
+    )
+
+    assert result["generated_ad"]["sources"] == ["brand-voice#1"]
+    assert any(source["chunk_id"] == "brand-voice#1" for source in result["sources"])
+    assert len(model.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_policy_guidance_numbers_do_not_authorize_product_claims(monkeypatch):
+    from adproof.generator import generator
+
+    monkeypatch.setattr(generator, "_policy_guidance", lambda _request: "Policy number 8675309.")
+    unsupported = _ad(headlines=["AeroBeat AB-01", "8675309 benefits", "Save 25% today"])
+    model = FakeModelClient([unsupported, unsupported])
+
+    with pytest.raises(ModelClientError) as error:
+        await generate_ad(
+            "Generate an ad for AeroBeat AB-01",
+            index=FakeIndex(),
+            model=model,
+            deadline=datetime.now(UTC) + timedelta(minutes=1),
+        )
+
+    attempts = error.value.error.details["attempt_violations"]
+    assert len(attempts) == 2
+    assert all(any("8675309" in violation for violation in attempt) for attempt in attempts)

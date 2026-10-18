@@ -10,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 from adproof.domain.models import AuditReport, VerificationResult
+from adproof.generator.generator import parse_generation_request
 
 
 def report_summary(report: AuditReport) -> dict[str, Any]:
@@ -56,16 +57,28 @@ def render_report(report: AuditReport) -> str:
     return "```json\n" + json.dumps(report_summary(report), indent=2, ensure_ascii=False) + "\n```"
 
 
-def render_generation_failure(prompt: str, message: str, *, audit_id: str | None = None) -> str:
+def render_generation_failure(
+    prompt: str,
+    message: str,
+    *,
+    audit_id: str | None = None,
+    attempt_violations: list[list[str]] | None = None,
+) -> str:
+    notes = [message]
+    notes.extend(
+        f"Attempt {attempt}: {violation}"
+        for attempt, violations in enumerate(attempt_violations or [], start=1)
+        for violation in violations
+    )
     summary = {
         "audit_id": audit_id or uuid4().hex,
-        "request": prompt,
+        "request": parse_generation_request(prompt).model_dump(mode="json"),
         "final": {
             "decision": "HUMAN_REVIEW",
             "ad_copy": None,
             "repair_verified": False,
         },
-        "notes": [message],
+        "notes": notes,
     }
     return "```json\n" + json.dumps(summary, indent=2, ensure_ascii=False) + "\n```"
 

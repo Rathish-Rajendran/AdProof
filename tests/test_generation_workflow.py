@@ -80,7 +80,21 @@ def _policy() -> PolicyEngine:
     )
 
 
-def _request(copy: str, audience: str = "adults") -> VerificationRequest:
+def _request(
+    copy: str,
+    audience: str = "adults",
+    *,
+    context_overrides: dict | None = None,
+) -> VerificationRequest:
+    context = CampaignContext(
+        platform="google_ads",
+        jurisdiction="US",
+        language="en",
+        audience=audience,
+        product_category="electronics",
+    )
+    if context_overrides:
+        context = context.model_copy(update=context_overrides)
     return VerificationRequest(
         audit_id="audit-corpus",
         request_id="request-corpus",
@@ -90,13 +104,7 @@ def _request(copy: str, audience: str = "adults") -> VerificationRequest:
         phase=Phase.ORIGINAL,
         ad_copy=copy,
         landing_page_url=PAGE_URL,
-        context=CampaignContext(
-            platform="google_ads",
-            jurisdiction="US",
-            language="en",
-            audience=audience,
-            product_category="electronics",
-        ),
+        context=context,
         image_inspection_status=InspectionStatus.NOT_APPLICABLE,
         corpus_mode=True,
         corpus_document_id="aerobeat-ab01-product",
@@ -112,6 +120,7 @@ async def _verify_claim(
     quote: str,
     audience="adults",
     source_index: int = 1,
+    context_overrides: dict | None = None,
 ):
     model = FakeModelClient(
         [
@@ -139,7 +148,7 @@ async def _verify_claim(
     )
     index = FakeCorpusIndex()
     return await verify_campaign(
-        _request(copy, audience),
+        _request(copy, audience, context_overrides=context_overrides),
         VerificationDependencies(
             http=None,  # type: ignore[arg-type]
             model=model,
@@ -185,6 +194,55 @@ async def test_corpus_verification_contradicts_waterproof_and_minors_require_rev
         audience="minors",
     )
     assert minors.decision == Decision.HUMAN_REVIEW
+    assert any(
+        error.message
+        == "This ad targets minors, which is outside the supported adult-audience scope; "
+        "a human review is required."
+        for error in minors.errors
+    )
+
+
+@pytest.mark.asyncio
+async def test_nonmatching_audience_platform_and_jurisdiction_have_specific_errors():
+    unsupported_audience = await _verify_claim(
+        "Splash-resistant AeroBeat headphones.",
+        claim_text="splash-resistant",
+        status=ClaimStatus.SUPPORTED,
+        quote="splash-resistant for everyday use",
+        audience="other",
+    )
+    assert any(
+        error.message
+        == "The requested audience is outside the supported scope; a human review is required."
+        for error in unsupported_audience.errors
+    )
+
+    unsupported_platform = await _verify_claim(
+        "Splash-resistant AeroBeat headphones.",
+        claim_text="splash-resistant",
+        status=ClaimStatus.SUPPORTED,
+        quote="splash-resistant for everyday use",
+        context_overrides={"platform": "microsoft_ads"},
+    )
+    assert any(
+        error.message
+        == "The requested platform microsoft_ads is outside the supported google_ads scope; "
+        "a human review is required."
+        for error in unsupported_platform.errors
+    )
+
+    unsupported_jurisdiction = await _verify_claim(
+        "Splash-resistant AeroBeat headphones.",
+        claim_text="splash-resistant",
+        status=ClaimStatus.SUPPORTED,
+        quote="splash-resistant for everyday use",
+        context_overrides={"jurisdiction": "CA"},
+    )
+    assert any(
+        error.message == "The requested jurisdiction CA is outside the supported US scope; "
+        "a human review is required."
+        for error in unsupported_jurisdiction.errors
+    )
 
 
 @pytest.mark.asyncio

@@ -357,6 +357,11 @@ def run() -> None:
                         if isinstance(exc, ModelClientError)
                         else f"Generation could not be processed ({type(exc).__name__})."
                     ),
+                    attempt_violations=(
+                        exc.error.details.get("attempt_violations")
+                        if isinstance(exc, ModelClientError)
+                        else None
+                    ),
                 )
         elif (text_card_action := _safe_text_card_action(text)) is not False and (
             text_card_action is not None
