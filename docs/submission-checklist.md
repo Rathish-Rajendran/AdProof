@@ -3,7 +3,7 @@
 ## Verified evidence (2026-10-18)
 
 - [x] The orchestrator mailbox is connected in Agentverse for `agent1q0lpgrz6c80h2n5ns0vw5sq0wtrp8gkm92x3pl6n5hwru7z0f47977ntemy`. The user signed in to Agentverse in the Devin VM browser, opened the orchestrator inspector, and selected **Connect → Mailbox**. The orchestrator log reported `[mailbox]: Successfully registered as mailbox agent in Agentverse`.
-- [x] The user queried `https://agentverse.ai/v1/almanac/agents/agent1q0lpgrz6c80h2n5ns0vw5sq0wtrp8gkm92x3pl6n5hwru7z0f47977ntemy`; it returned `status: active`, `type: mailbox`, endpoint `https://agentverse.ai/v2/agents/mailbox/submit`, 2 protocols, and expiry `2026-11-16T23:01:11Z`.
+- [x] Devin queried `https://agentverse.ai/v1/almanac/agents/agent1q0lpgrz6c80h2n5ns0vw5sq0wtrp8gkm92x3pl6n5hwru7z0f47977ntemy`; it returned `status: active`, `type: mailbox`, endpoint `https://agentverse.ai/v2/agents/mailbox/submit`, 2 protocols, and expiry `2026-11-16T23:01:11Z`.
 - [x] Sentry ingestion was confirmed by the user in their Sentry account.
 - Almanac on-chain contract registration is **not required**: `uagents 0.26.1` registers through the Almanac API first, then swallows `InsufficientFundsError` for the contract step. The wallet had no funds; none were spent or requested.
 
