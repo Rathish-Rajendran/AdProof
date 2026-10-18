@@ -5,19 +5,32 @@ import json
 import os
 import re
 import uuid
-from collections import OrderedDict
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import sentry_sdk
-from uagents import Context, Model
-from uagents_core.contrib.protocols.chat import ChatAcknowledgement, ChatMessage, TextContent
+from uagents import Context, Model, Protocol
+from uagents_core.contrib.protocols.chat import (
+    ChatAcknowledgement,
+    ChatMessage,
+    EndSessionContent,
+    MetadataContent,
+    StartSessionContent,
+    TextContent,
+    chat_protocol_spec,
+)
 
 from adproof.domain.models import AuditReport, CampaignInput, ExecutionMode
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry, record_event
+from adproof.orchestrator.cards import (
+    create_result_card,
+    extract_card_action,
+    handle_card_action,
+)
 from adproof.orchestrator.gateway import UAgentsGateway
+from adproof.orchestrator.limits import OwnerAuditLimiter
 from adproof.orchestrator.workflow import build_live_dependencies, run_campaign
 from adproof.transport.models import SpecialistOperation, SpecialistResult, SpecialistTask
 from adproof.transport.pending import PendingTaskRegistry
@@ -29,14 +42,11 @@ class HealthResponse(Model):
 
 
 _FENCED_JSON = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.IGNORECASE | re.DOTALL)
-_seen_messages: OrderedDict[tuple[str, str, str], str] = OrderedDict()
+_owner_limiter = OwnerAuditLimiter(limit=2)
 
 
-def _plain_text(text: str) -> str:
-    parts: list[str] = []
-    for index in range(0, len(text), 3600):
-        parts.append(text[index : index + 3600])
-    return "\n".join(parts)
+def _text_chunks(text: str) -> list[str]:
+    return [text[index : index + 3600] for index in range(0, len(text), 3600)] or [""]
 
 
 def _campaign_from_text(text: str) -> CampaignInput:
@@ -111,6 +121,34 @@ def run() -> None:
     dependencies = build_live_dependencies(settings)
     dependencies.store.interrupt_nonterminal()
     root = repository_root()
+    chat_protocol = Protocol(spec=chat_protocol_spec)
+
+    async def execute_campaign(
+        campaign: CampaignInput, *, owner: str, session_id: str, ctx: Context
+    ) -> AuditReport | None:
+        if not await _owner_limiter.acquire(owner):
+            return None
+        try:
+            gateway = UAgentsGateway(
+                context=ctx,
+                pending=pending,
+                verifier_address=addresses["verifier"],
+                remediator_address=addresses["remediator"],
+                budget=dependencies.budget,
+                execution_mode=ExecutionMode.LIVE.value,
+            )
+            with sentry_sdk.start_transaction(name="adproof audit", op="adproof.intake"):
+                trace_parent = sentry_sdk.get_traceparent()
+                if settings.sentry_dsn and trace_parent:
+                    print(f"ADPROOF_TRACE_PARENT={trace_parent}", flush=True)
+                return await run_campaign(
+                    campaign,
+                    owner=owner,
+                    session_id=session_id,
+                    dependencies=replace(dependencies, gateway=gateway),
+                )
+        finally:
+            await _owner_limiter.release(owner)
 
     @agent.on_rest_get("/health", HealthResponse)
     async def health(ctx: Context) -> HealthResponse:
@@ -126,36 +164,42 @@ def run() -> None:
         else:
             record_event("duplicate_ignored", role="orchestrator", audit_id=result.audit_id)
 
-    @agent.on_message(ChatMessage, replies={ChatAcknowledgement, ChatMessage, SpecialistTask})
+    @chat_protocol.on_message(ChatAcknowledgement)
+    async def handle_chat_acknowledgement(
+        ctx: Context, sender: str, message: ChatAcknowledgement
+    ) -> None:
+        return
+
+    @chat_protocol.on_message(ChatMessage)
     async def handle_chat(ctx: Context, sender: str, message: ChatMessage) -> None:
         await ctx.send(sender, ChatAcknowledgement(acknowledged_msg_id=message.msg_id))
         text = message.text().strip()
-        message_key = (sender, str(ctx.session), str(message.msg_id))
-        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        previous_digest = _seen_messages.get(message_key)
-        if previous_digest is not None:
+        session_id = str(ctx.session)
+        digest = hashlib.sha256(
+            json.dumps(message.dict(), sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+        message_status = dependencies.store.claim_chat_message(
+            sender=sender,
+            session_id=session_id,
+            msg_id=str(message.msg_id),
+            digest=digest,
+        )
+        if message_status == "DUPLICATE":
             record_event("duplicate_ignored", role="orchestrator")
-            if previous_digest == digest:
-                return
-            await ctx.send(
-                sender,
-                ChatMessage(
-                    content=[
-                        TextContent(
-                            type="text", text="Message ID was reused with different content."
-                        )
-                    ]
-                ),
-            )
             return
-        _seen_messages[message_key] = digest
-        _seen_messages.move_to_end(message_key)
-        while len(_seen_messages) > 2000:
-            _seen_messages.popitem(last=False)
-
+        if message_status == "CONFLICT":
+            reply = "Message ID was reused with different content."
+            await _send_terminal(ctx, sender, reply)
+            return
         lowered = text.casefold()
+        result_card = None
         if len(text.encode("utf-8")) > 16 * 1024:
             reply = "Message exceeds the 16 KiB intake limit."
+        elif any(isinstance(item, StartSessionContent) for item in message.content):
+            reply = (
+                "Welcome to AdProof. Send `help` for commands. This is bounded advertising "
+                "preflight, not legal advice or platform certification."
+            )
         elif (
             lowered in {"probe delayed", "probe timeout"}
             and os.getenv("ADPROOF_TRANSPORT_PROBE") == "1"
@@ -192,87 +236,120 @@ def run() -> None:
                     reply = f"specialist_error={result.value}; intake_session={ctx.session}"
         elif lowered in {"help", "?"}:
             reply = (
-                "Send `example`, `demo aerobeat [repair]`, `status <audit_id>`, `report <audit_id>`, "
+                "Send `example`, `demo aerobeat`, `demo aerobeat49`, `demo aerobeat correct`, "
+                "`status <audit_id>`, `report <audit_id>`, "
                 "a fenced CampaignInput JSON object, or Image:/Copy:/Page: fields."
             )
         elif lowered == "example":
             example_path = root / "schemas/examples/CampaignInput.json"
             reply = example_path.read_text(encoding="utf-8")
+        elif message.content and any(
+            isinstance(item, MetadataContent)
+            and item.metadata.get("card_protocol_version") == "1"
+            and "card_kind" not in item.metadata
+            for item in message.content
+        ):
+            try:
+                action = extract_card_action(message)
+                if action is None:
+                    reply = "Card action was not recognized."
+                else:
+
+                    async def run_card_repair(campaign: CampaignInput) -> str:
+                        report = await execute_campaign(
+                            campaign, owner=sender, session_id=session_id, ctx=ctx
+                        )
+                        if report is None:
+                            return "The per-owner concurrent-audit limit is currently full."
+                        return _render_report(report)
+
+                    reply = await handle_card_action(
+                        action,
+                        owner=sender,
+                        session_id=session_id,
+                        store=dependencies.store,
+                        render_report=_render_report,
+                        run_repair=run_card_repair,
+                    )
+            except ValueError:
+                reply = "Card action was invalid."
         elif lowered.startswith(("status ", "report ")):
             command, audit_id = text.split(maxsplit=1)
             stored = dependencies.store.get_workflow(
                 audit_id.strip(),
                 owner=sender,
-                session_id=str(ctx.session),
+                session_id=session_id,
             )
             if stored is None:
                 reply = "No audit with that ID is available to this chat session."
             elif command.casefold() == "status":
                 reply = f"Audit {audit_id.strip()}: {stored['state']}"
+                report_data = stored.get("payload", {}).get("report")
+                if report_data:
+                    result_card = create_result_card(AuditReport.model_validate(report_data))
             else:
                 report = stored.get("payload", {}).get("report")
-                reply = (
-                    _render_report(AuditReport.model_validate(report))
-                    if report
-                    else "No report is available yet."
-                )
+                if report:
+                    parsed_report = AuditReport.model_validate(report)
+                    reply = _render_report(parsed_report)
+                    result_card = create_result_card(parsed_report)
+                else:
+                    reply = "No report is available yet."
         else:
             try:
-                if lowered.startswith("demo aerobeat"):
-                    repair_mode = "repair_once" if "repair" in lowered else "audit_only"
-                    demo_path = root / "data/fixtures/demo_campaign.json"
+                demo_cases = {
+                    "demo aerobeat": "case01_unsafe_neutral.json",
+                    "demo aerobeat49": "case03_unsafe_only49.json",
+                    "demo aerobeat correct": "case04_correct_neutral.json",
+                }
+                if lowered in demo_cases:
+                    demo_path = root / "data/fixtures/cases" / demo_cases[lowered]
                     campaign = CampaignInput.model_validate_json(
                         demo_path.read_text(encoding="utf-8")
                     )
-                    if repair_mode == "repair_once":
-                        campaign = campaign.model_copy(
-                            update={
-                                "creative": campaign.creative.model_copy(
-                                    update={
-                                        "image_url": campaign.creative.image_url.replace(
-                                            "aerobeat-neutral.png", "aerobeat-only49.png"
-                                        ),
-                                        "ad_copy": "AeroBeat AB-01 headphones. Only $49.",
-                                    }
-                                )
-                            }
-                        )
                     campaign = campaign.model_copy(
                         update={
                             "request_id": hashlib.sha256(
                                 f"{campaign.request_id}:{message.msg_id}".encode()
                             ).hexdigest()[:24],
-                            "repair_mode": repair_mode,
                         }
                     )
                 else:
                     campaign = _campaign_from_text(text)
-                gateway = UAgentsGateway(
-                    context=ctx,
-                    pending=pending,
-                    verifier_address=addresses["verifier"],
-                    remediator_address=addresses["remediator"],
-                    budget=dependencies.budget,
-                    execution_mode=ExecutionMode.LIVE.value,
+                report = await execute_campaign(
+                    campaign, owner=sender, session_id=session_id, ctx=ctx
                 )
-                with sentry_sdk.start_transaction(name="adproof audit", op="adproof.intake"):
-                    trace_parent = sentry_sdk.get_traceparent()
-                    if settings.sentry_dsn and trace_parent:
-                        print(f"ADPROOF_TRACE_PARENT={trace_parent}", flush=True)
-                    report = await run_campaign(
-                        campaign,
-                        owner=sender,
-                        session_id=str(ctx.session),
-                        dependencies=replace(dependencies, gateway=gateway),
-                    )
-                reply = _render_report(report)
+                if report is None:
+                    reply = "The per-owner concurrent-audit limit is currently full."
+                else:
+                    reply = _render_report(report)
+                    result_card = create_result_card(report)
             except Exception as exc:
                 record_event("audit_failed", role="orchestrator", result=type(exc).__name__)
                 reply = f"Request could not be processed ({type(exc).__name__}). Send `help` for accepted inputs."
-        for chunk in _plain_text(reply).splitlines():
-            await ctx.send(sender, ChatMessage(content=[TextContent(type="text", text=chunk)]))
+        await _send_terminal(ctx, sender, reply, card=result_card)
+        dependencies.store.complete_chat_message(
+            sender=sender,
+            session_id=session_id,
+            msg_id=str(message.msg_id),
+            response={"text": reply},
+        )
+
+    agent.include(chat_protocol, publish_manifest=True)
 
     agent.run()
+
+
+async def _send_terminal(ctx: Context, sender: str, reply: str, *, card: Any | None = None) -> None:
+    chunks = _text_chunks(reply)
+    for chunk in chunks[:-1]:
+        content = [TextContent(type="text", text=chunk)] if chunk else []
+        await ctx.send(sender, ChatMessage(content=content))
+    content = [TextContent(type="text", text=chunks[-1])] if chunks[-1] else []
+    if card is not None:
+        content.append(card)
+    content.append(EndSessionContent())
+    await ctx.send(sender, ChatMessage(content=content))
 
 
 if __name__ == "__main__":

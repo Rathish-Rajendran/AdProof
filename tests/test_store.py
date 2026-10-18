@@ -41,3 +41,55 @@ def test_store_binds_ownership_idempotency_and_retention(tmp_path):
         == "WORKFLOW_INTERRUPTED"
     )
     assert store.purge_expired(now=datetime.now(UTC) + timedelta(days=2)) == 1
+
+
+def test_chat_message_dedupe_and_card_action_idempotency_survive_restart(tmp_path):
+    path = tmp_path / "audit.sqlite3"
+    store = SQLiteStore(path)
+    assert (
+        store.claim_chat_message(
+            sender="owner",
+            session_id="session",
+            msg_id="message",
+            digest="message-hash",
+        )
+        == "NEW"
+    )
+    assert (
+        store.claim_card_action(
+            owner="owner",
+            session_id="session",
+            action_id="action",
+            digest="action-hash",
+        )
+        is True
+    )
+
+    restarted = SQLiteStore(path)
+    assert (
+        restarted.claim_chat_message(
+            sender="owner",
+            session_id="session",
+            msg_id="message",
+            digest="message-hash",
+        )
+        == "DUPLICATE"
+    )
+    assert (
+        restarted.claim_chat_message(
+            sender="owner",
+            session_id="session",
+            msg_id="message",
+            digest="different",
+        )
+        == "CONFLICT"
+    )
+    assert (
+        restarted.claim_card_action(
+            owner="owner",
+            session_id="session",
+            action_id="action",
+            digest="action-hash",
+        )
+        is False
+    )

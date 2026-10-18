@@ -35,11 +35,12 @@ def make_agent(
     concurrent: bool = False,
 ) -> Agent:
     own_port = port or int(os.getenv(f"{role.upper()}_PORT", PORTS[role]))
-    own_endpoint = f"http://127.0.0.1:{own_port}/submit"
+    own_host = os.getenv(f"{role.upper()}_HOST", "127.0.0.1")
+    own_endpoint = f"http://{own_host}:{own_port}/submit"
     endpoints = {
         addresses[
             peer
-        ]: f"http://127.0.0.1:{int(os.getenv(f'{peer.upper()}_PORT', PORTS[peer]))}/submit"
+        ]: f"http://{os.getenv(f'{peer.upper()}_HOST', '127.0.0.1')}:{int(os.getenv(f'{peer.upper()}_PORT', PORTS[peer]))}/submit"
         for peer in PORTS
         if peer != role
     }
@@ -47,15 +48,30 @@ def make_agent(
         test_client = Identity.from_seed(TRANSPORT_TEST_CLIENT_SEED, 0)
         endpoints[test_client.address] = "http://127.0.0.1:8110/submit"
     mailbox = os.getenv("ADPROOF_MAILBOX_ENABLED", "").casefold() in {"1", "true", "yes"}
-    return Agent(
-        name=f"adproof-{role}",
-        seed=seed,
-        port=own_port,
-        endpoint=[own_endpoint],
-        resolve=RulesBasedResolver(endpoints),
-        mailbox=mailbox,
-        handle_messages_concurrently=concurrent,
-    )
+    public_orchestrator = role == "orchestrator" and mailbox
+    agent_options = {
+        "name": f"adproof-{role}",
+        "seed": seed,
+        "port": own_port,
+        "resolve": RulesBasedResolver(endpoints),
+        "mailbox": public_orchestrator,
+        "publish_agent_details": public_orchestrator,
+        "readme_path": (
+            str(Path(__file__).resolve().parent / "orchestrator" / "README.md")
+            if public_orchestrator
+            else None
+        ),
+        "description": (
+            "Bounded preflight and one copy-only repair for supported US consumer-electronics ads. "
+            "Not legal advice, platform certification, or a safety guarantee."
+            if public_orchestrator
+            else None
+        ),
+        "handle_messages_concurrently": concurrent,
+    }
+    if not public_orchestrator:
+        agent_options["endpoint"] = [own_endpoint]
+    return Agent(**agent_options)
 
 
 def repository_root() -> Path:

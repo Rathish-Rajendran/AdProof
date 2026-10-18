@@ -34,7 +34,7 @@ def run(*, workflow: bool = False) -> None:
     @agent.on_event("startup")
     async def start(ctx: Context) -> None:
         expected.add(str(ctx.session))
-        commands = ("demo aerobeat repair",) if workflow else ("probe delayed", "probe timeout")
+        commands = ("demo aerobeat",) if workflow else ("probe delayed", "probe timeout")
         for command in commands:
             await ctx.send(
                 addresses["orchestrator"],

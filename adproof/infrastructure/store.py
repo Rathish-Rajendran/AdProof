@@ -44,6 +44,27 @@ class SQLiteStore:
                     PRIMARY KEY (scope, request_id)
                 )"""
             )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS chat_messages (
+                    sender TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    msg_id TEXT NOT NULL,
+                    digest TEXT NOT NULL,
+                    response_json TEXT,
+                    expires_at TEXT NOT NULL,
+                    PRIMARY KEY (sender, session_id, msg_id)
+                )"""
+            )
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS card_actions (
+                    owner TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    action_id TEXT NOT NULL,
+                    digest TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    PRIMARY KEY (owner, session_id, action_id)
+                )"""
+            )
         self.path.chmod(0o600)
 
     def save_workflow(
@@ -103,6 +124,73 @@ class SQLiteStore:
             )
         return audit_id
 
+    def claim_chat_message(
+        self,
+        *,
+        sender: str,
+        session_id: str,
+        msg_id: str,
+        digest: str,
+        now: datetime | None = None,
+    ) -> str:
+        now = now or datetime.now(UTC)
+        expires_at = now + self.retention
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT digest FROM chat_messages
+                   WHERE sender=? AND session_id=? AND msg_id=?""",
+                (sender, session_id, msg_id),
+            ).fetchone()
+            if row is not None:
+                return "DUPLICATE" if row["digest"] == digest else "CONFLICT"
+            connection.execute(
+                """INSERT INTO chat_messages VALUES (?, ?, ?, ?, NULL, ?)""",
+                (sender, session_id, msg_id, digest, expires_at.isoformat()),
+            )
+        return "NEW"
+
+    def complete_chat_message(
+        self,
+        *,
+        sender: str,
+        session_id: str,
+        msg_id: str,
+        response: dict[str, Any],
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """UPDATE chat_messages SET response_json=?
+                   WHERE sender=? AND session_id=? AND msg_id=?""",
+                (json.dumps(response), sender, session_id, msg_id),
+            )
+
+    def claim_card_action(
+        self,
+        *,
+        owner: str,
+        session_id: str,
+        action_id: str,
+        digest: str,
+        now: datetime | None = None,
+    ) -> bool | TypedErrorCode:
+        now = now or datetime.now(UTC)
+        expires_at = now + self.retention
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT digest FROM card_actions
+                   WHERE owner=? AND session_id=? AND action_id=?""",
+                (owner, session_id, action_id),
+            ).fetchone()
+            if row is not None:
+                if row["digest"] != digest:
+                    return TypedErrorCode.INVALID_EVIDENCE
+                return False
+            connection.execute(
+                """INSERT INTO card_actions VALUES (?, ?, ?, ?, ?)""",
+                (owner, session_id, action_id, digest, expires_at.isoformat()),
+            )
+        return True
+
     def interrupt_nonterminal(self) -> int:
         with self._connect() as connection:
             cursor = connection.execute(
@@ -117,4 +205,6 @@ class SQLiteStore:
             cursor = connection.execute(
                 "DELETE FROM workflows WHERE expires_at<=?", (now.isoformat(),)
             )
+            connection.execute("DELETE FROM chat_messages WHERE expires_at<=?", (now.isoformat(),))
+            connection.execute("DELETE FROM card_actions WHERE expires_at<=?", (now.isoformat(),))
         return cursor.rowcount
