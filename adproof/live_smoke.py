@@ -16,7 +16,7 @@ from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.store import SQLiteStore
 from adproof.infrastructure.telemetry import initialize_telemetry
 from adproof.inspector.inspector import ImageInspector
-from adproof.model_client import GoogleGenAIClient
+from adproof.model_client import build_model_client
 from adproof.orchestrator.gateway import LocalGateway
 from adproof.orchestrator.workflow import WorkflowDependencies, run_campaign
 from adproof.verifier.policy import PolicyEngine
@@ -29,7 +29,7 @@ async def live_smoke(max_model_calls: int) -> int:
     settings = Settings.from_env()
     initialize_telemetry(settings, role="live-smoke")
     budget = ModelCallBudget(max_model_calls)
-    model = GoogleGenAIClient(model=settings.gemini_model, budget=budget)
+    model = build_model_client(settings, budget)
     inspector = ImageInspector(model)
     inspections = []
     image_names = (
@@ -37,7 +37,7 @@ async def live_smoke(max_model_calls: int) -> int:
         "aerobeat-only49.png",
         "aerobeat-blurry.png",
     )
-    deadline = datetime.now(UTC) + timedelta(minutes=5)
+    deadline = datetime.now(UTC) + timedelta(seconds=settings.workflow_deadline_seconds)
     for name in image_names:
         path = ROOT / "data/fixtures/public" / name
         frozen = freeze_image(path.read_bytes())
@@ -50,6 +50,7 @@ async def live_smoke(max_model_calls: int) -> int:
         inspections.append(
             {
                 "fixture": name,
+                "model_spec": settings.model_spec_for("image_inspection"),
                 "status": result.status.value,
                 "model_version": result.model_version,
                 "observations": [item.model_dump(mode="json") for item in result.observations],
@@ -98,12 +99,15 @@ async def live_smoke(max_model_calls: int) -> int:
             "decision": report.final_decision.value,
             "workflow_status": report.workflow_status.value,
             "model_versions": report.model_versions,
+            "model_specs": report.model_specs,
             "trace_parent": trace_id,
             "errors": [error.model_dump(mode="json") for error in report.errors],
         }
         await http.close()
     result = {
-        "configured_model": settings.gemini_model,
+        "model_provider": settings.model_provider,
+        "configured_model": settings.active_model,
+        "model_specs": settings.model_specs,
         "model_calls_used": budget.consumed,
         "model_call_limit": max_model_calls,
         "calls": model.call_records,
@@ -115,12 +119,12 @@ async def live_smoke(max_model_calls: int) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Opt-in paid Gemini image/JSON smoke tests.")
+    parser = argparse.ArgumentParser(description="Opt-in live model image/JSON smoke tests.")
     parser.add_argument("--max-model-calls", type=int, default=20)
     args = parser.parse_args()
     if args.max_model_calls < 1 or args.max_model_calls > 20:
         parser.error("--max-model-calls must be in the range 1..20")
-    print("WARNING: this command performs paid real Gemini inference; no fixture fallback is used.")
+    print("WARNING: this command performs live model inference; no fixture fallback is used.")
     return asyncio.run(live_smoke(args.max_model_calls))
 
 

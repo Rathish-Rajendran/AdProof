@@ -45,7 +45,7 @@ async def preflight(*, offline: bool) -> int:
         print(f"FAIL preflight: {type(exc).__name__}: {exc}")
         return 1
     mode = "offline" if offline else "environment-only"
-    print(f"Preflight passed ({mode}); live Gemini/uAgents/Sentry gates remain separate.")
+    print(f"Preflight passed ({mode}); live model/uAgents/Sentry gates remain separate.")
     return 0
 
 

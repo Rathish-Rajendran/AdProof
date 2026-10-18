@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from typing import Any, Literal
 
@@ -53,6 +54,28 @@ def create_result_card(report: AuditReport) -> MetadataContent:
     if len(payload.model_dump_json(exclude_none=True).encode("utf-8")) > MAX_CARD_BYTES:
         raise ValueError("card payload exceeds its byte limit")
     return create_card_content(payload, card_id=uuid.uuid4())
+
+
+def card_action_from_text(text: str) -> CardAction | None:
+    """ASI:One may echo a card selection back as plain JSON text instead of a card response."""
+    stripped = text.strip()
+    if not (stripped.startswith("{") and stripped.endswith("}")):
+        return None
+    try:
+        data = json.loads(stripped)
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or not {"action", "action_id", "audit_id"} <= data.keys():
+        return None
+    try:
+        action = CardAction.model_validate(
+            {key: data[key] for key in ("action", "action_id", "audit_id")}
+        )
+    except ValidationError as exc:
+        raise ValueError("card response is invalid") from exc
+    if action.action_id != f"{action.audit_id}:{action.action}":
+        raise ValueError("card action ID does not match its action and audit")
+    return action
 
 
 def extract_card_action(message: ChatMessage) -> CardAction | None:

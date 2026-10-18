@@ -262,3 +262,23 @@ async def test_owner_audit_limit_is_independent_and_released():
     assert await limiter.acquire("alice")
     await limiter.release("alice")
     await limiter.release("bob")
+
+
+def test_asi_one_text_echoed_selection_is_parsed_as_card_action():
+    from adproof.orchestrator.cards import card_action_from_text
+
+    audit = "dbe34b6648aa4af29f7f24f81f8e9dba"
+    text = (
+        f'{{"action":"show_report","action_id":"{audit}:show_report",'
+        f'"audit_id":"{audit}","app":"asi1"}}'
+    )
+    action = card_action_from_text(text)
+    assert action is not None and action.action == "show_report" and action.audit_id == audit
+    assert card_action_from_text("demo aerobeat") is None
+    assert card_action_from_text('{"campaign": 1}') is None
+    import pytest
+
+    with pytest.raises(ValueError):
+        card_action_from_text(
+            f'{{"action":"status","action_id":"{audit}:show_report","audit_id":"{audit}"}}'
+        )

@@ -33,7 +33,6 @@ from adproof.infrastructure.telemetry import record_event, stage_span
 from adproof.inspector.inspector import ImageInspector
 from adproof.orchestrator.gateway import LocalGateway
 
-WORKFLOW_DEADLINE = timedelta(seconds=120)
 RESERVE_SECONDS = 5
 
 
@@ -83,7 +82,9 @@ async def run_campaign(
             return AuditReport.model_validate(stored["payload"]["report"])
         raise RuntimeError("an identical campaign is already in progress")
 
-    deadline = datetime.now(UTC) + WORKFLOW_DEADLINE
+    deadline = datetime.now(UTC) + timedelta(
+        seconds=dependencies.settings.workflow_deadline_seconds
+    )
     timestamps: dict[str, datetime] = {"received": datetime.now(UTC)}
     errors: list[TypedError] = []
     locks = dependencies.audit_locks.setdefault(campaign.campaign_id, asyncio.Lock())
@@ -150,6 +151,9 @@ async def run_campaign(
                 final_decision=Decision.HUMAN_REVIEW,
                 final_decision_basis="The creative image could not be safely retrieved and frozen.",
                 repair_verified=False,
+                model_provider=dependencies.settings.model_provider,
+                configured_model=dependencies.settings.active_model,
+                model_specs=dependencies.settings.model_specs,
                 errors=errors,
                 timestamps=timestamps,
             )
@@ -361,6 +365,9 @@ async def run_campaign(
                 if original_audit
                 else "unknown"
             },
+            model_provider=dependencies.settings.model_provider,
+            configured_model=dependencies.settings.active_model,
+            model_specs=dependencies.settings.model_specs,
             model_versions=model_versions,
             timestamps={**timestamps, "completed": datetime.now(UTC)},
             timings={"total_seconds": asyncio.get_running_loop().time() - started},
@@ -392,13 +399,13 @@ def build_live_dependencies(settings: Settings) -> WorkflowDependencies:
     import json
 
     from adproof.infrastructure.telemetry import initialize_telemetry
-    from adproof.model_client import GoogleGenAIClient
+    from adproof.model_client import build_model_client
     from adproof.verifier.policy import PolicyEngine
     from adproof.verifier.verifier import VerificationDependencies
 
     initialize_telemetry(settings, role="orchestrator")
     budget = ModelCallBudget(20)
-    model = GoogleGenAIClient(model=settings.gemini_model, budget=budget)
+    model = build_model_client(settings, budget)
     http = SafeHttpClient()
     root = Path(__file__).resolve().parents[2]
     policy = PolicyEngine(

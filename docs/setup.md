@@ -15,7 +15,30 @@ uv run python -m adproof.preflight --offline
 uv run python -m adproof.demo --mode mock
 ```
 
-The offline suite requires no keys. MOCK is an explicit deterministic demonstration only. LIVE requires a privately configured `GEMINI_API_KEY`; `GEMINI_MODEL` selects the model and defaults to `gemini-3.5-flash`. `SENTRY_DSN` is optional and must not affect audit outcomes.
+The offline suite requires no keys. MOCK is an explicit deterministic demonstration only. LIVE defaults to `gemini:gemini-3.5-flash` for all jobs and requires a billed `GEMINI_API_KEY`. Ollama with the Qwen 3B pair is an optional local alternative; install it from the [official guide](https://ollama.com/download) and pull both models if needed:
+
+```sh
+ollama pull qwen2.5:3b
+ollama pull qwen2.5vl:3b
+```
+
+Model specs use `<provider>:<model>` and split at the first colon. `ADPROOF_MODEL_DEFAULT` and `ADPROOF_MODEL_IMAGE_INSPECTION` default to `gemini:gemini-3.5-flash`; claim extraction, evidence assessment, and copy remediation inherit the default unless overridden.
+
+| Job | Environment variable | Default | Rationale |
+|---|---|---|---|
+| Image inspection | `ADPROOF_MODEL_IMAGE_INSPECTION` | `gemini:gemini-3.5-flash` | The only job that reads pixels, so it uses a vision-capable model. |
+| Claim extraction | `ADPROOF_MODEL_CLAIM_EXTRACTION` | `gemini:gemini-3.5-flash` via the default | Text-only claim extraction. |
+| Evidence assessment | `ADPROOF_MODEL_EVIDENCE_ASSESSMENT` | `gemini:gemini-3.5-flash` via the default | Text-only evidence and quote checking. |
+| Copy remediation | `ADPROOF_MODEL_COPY_REMEDIATION` | `gemini:gemini-3.5-flash` via the default | Shares the text model; code validates numbers. |
+
+For optional local Qwen 3B, set `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b` and `ADPROOF_MODEL_IMAGE_INSPECTION=ollama:qwen2.5vl:3b`; the 3B local runs mostly ended in `HUMAN_REVIEW`. The 7B pair (`qwen2.5:7b` and `qwen2.5vl:7b`) is a higher-capacity local option, slower on CPU, and its partial results did not establish a quality improvement. The vision model is reserved for the job that reads pixels; repair shares the text model because code validates numbers. Gemini's configured model `gemini-3.5-flash` has been served as `gemini-3.6-flash` in live calls.
+
+```sh
+ollama pull qwen2.5:7b
+ollama pull qwen2.5vl:7b
+```
+
+To put only evidence assessment on another provider, set `ADPROOF_MODEL_EVIDENCE_ASSESSMENT` to its `<provider>:<model>` spec and restart the agents. Gemini credentials are required when a Gemini-routed job is called. Small local models may be less accurate than Gemini and slower on CPU. On the user's 8-core, 31 GB CPU-only host, `qwen2.5vl:3b` read the only-$49 image in 42 seconds including model load and split unsafe copy into four atomic claims in 10 seconds; `gemma3:4b` took 71 seconds and 46 seconds. These are single-machine probes, not benchmarks.
 
 ## Three-agent local runtime
 
@@ -51,13 +74,13 @@ For the complete mailbox-enabled, always-on setup and current Docker validation 
 
 ```sh
 if [ ! -f .env ]; then cp .env.example .env; fi
-docker compose config --quiet
+docker compose config -q
 docker compose up --build -d
 docker compose ps
 docker compose logs orchestrator
 ```
 
-Compose runs three services, shares the private named `runtime` volume, and checks `/health` on each process. It requires a usable model key because the workers are configured for LIVE processing. To stop them, use `docker compose down`; do not remove the volume if the deployed agent identities must remain stable. Do not overwrite an already configured `.env`; never commit it.
+Plain Compose uses Gemini and requires `GEMINI_API_KEY` in `.env`. For local Qwen, set both Ollama model specs in `.env`, then run `docker compose --profile ollama up --build -d`; the profile includes the optional Ollama service with a persistent model volume. Compose shares the private named `runtime` volume and checks agent health. To stop the services, use `docker compose down`; do not remove volumes if the models or deployed identities must remain stable. Do not overwrite an already configured `.env`; never commit it.
 
 ## Schema and policy maintenance
 

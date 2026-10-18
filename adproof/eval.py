@@ -4,18 +4,19 @@ import argparse
 import asyncio
 import json
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from adproof.domain.models import CampaignInput, ExecutionMode
+from adproof.domain.models import CampaignInput, ExecutionMode, TypedErrorCode
 from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.safe_http import SafeHttpClient
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.store import SQLiteStore
 from adproof.infrastructure.telemetry import initialize_telemetry
 from adproof.inspector.inspector import ImageInspector
-from adproof.model_client import GoogleGenAIClient
+from adproof.model_client import build_model_client
 from adproof.orchestrator.gateway import LocalGateway
 from adproof.orchestrator.workflow import WorkflowDependencies, run_campaign
 from adproof.verifier.policy import PolicyEngine
@@ -46,11 +47,15 @@ def _reported_model_versions(calls: list[dict[str, Any]]) -> list[str]:
     )
 
 
+def _calls_by_job(calls: list[dict[str, Any]]) -> dict[str, int]:
+    return dict(sorted(Counter(str(call["purpose"]) for call in calls).items()))
+
+
 async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> dict[str, Any]:
     settings = Settings.from_env()
     initialize_telemetry(settings, role="evaluation")
     budget = ModelCallBudget(max_model_calls)
-    model = GoogleGenAIClient(model=settings.gemini_model, budget=budget)
+    model = build_model_client(settings, budget)
     inspector = ImageInspector(model)
     policy = PolicyEngine.from_files(
         ROOT / "data/policies/catalog.json",
@@ -66,11 +71,13 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 results.append(
                     {
                         "case": case_number,
-                        "configured_model": settings.gemini_model,
+                        "model_provider": settings.model_provider,
+                        "configured_model": settings.active_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": "SKIPPED",
                         "skip_reason": "shared model-call budget exhausted",
                         "reported_model_versions": [],
+                        "model_calls_by_job": {},
                         "calls": [],
                     }
                 )
@@ -111,7 +118,8 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 results.append(
                     {
                         "case": case_number,
-                        "configured_model": settings.gemini_model,
+                        "model_provider": settings.model_provider,
+                        "configured_model": settings.active_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": report.final_decision.value,
                         "workflow_status": report.workflow_status.value,
@@ -125,9 +133,34 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                             for evidence_id in claim.evidence_ids
                         ),
                         "model_versions": report.model_versions,
+                        "model_specs": report.model_specs,
                         "reported_model_versions": _reported_model_versions(case_calls),
                         "model_call_count": len(case_calls),
+                        "model_calls_by_job": _calls_by_job(case_calls),
                         "calls": case_calls,
+                        "original_issues": (
+                            [
+                                issue.model_dump(mode="json")
+                                for issue in report.original_audit.issues
+                            ]
+                            if report.original_audit
+                            else []
+                        ),
+                        "revised_issues": (
+                            [issue.model_dump(mode="json") for issue in report.revised_audit.issues]
+                            if report.revised_audit
+                            else []
+                        ),
+                        "invalid_evidence_errors": [
+                            error.model_dump(mode="json")
+                            for audit in (report.original_audit, report.revised_audit)
+                            if audit
+                            for error in audit.errors
+                            if error.code == TypedErrorCode.INVALID_EVIDENCE
+                        ],
+                        "repair_copy": (
+                            report.repair_proposal.repaired_copy if report.repair_proposal else None
+                        ),
                         "timings_seconds": {
                             "workflow": report.timings.get("total_seconds"),
                             "wall": (datetime.now(UTC) - started).total_seconds(),
@@ -140,12 +173,15 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 results.append(
                     {
                         "case": case_number,
-                        "configured_model": settings.gemini_model,
+                        "model_provider": settings.model_provider,
+                        "configured_model": settings.active_model,
+                        "model_specs": settings.model_specs,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": "ERROR",
                         "error_type": type(exc).__name__,
                         "reported_model_versions": _reported_model_versions(case_calls),
                         "model_call_count": len(case_calls),
+                        "model_calls_by_job": _calls_by_job(case_calls),
                         "calls": case_calls,
                     }
                 )
@@ -154,7 +190,9 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
     result = {
         "run_id": run_id,
         "timestamp": datetime.now(UTC).isoformat(),
-        "configured_model": settings.gemini_model,
+        "model_provider": settings.model_provider,
+        "configured_model": settings.active_model,
+        "model_specs": settings.model_specs,
         "reported_model_versions": sorted(
             {version for result in results for version in result.get("reported_model_versions", [])}
         ),
@@ -171,12 +209,12 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Opt-in, bounded live evaluation.")
-    parser.add_argument("--live", action="store_true", help="allow paid external model calls")
+    parser.add_argument("--live", action="store_true", help="run the configured live model")
     parser.add_argument("--cases", default="1,2,3,4")
     parser.add_argument("--max-model-calls", type=int, default=20)
     args = parser.parse_args()
     if not args.live:
-        parser.error("pass --live to enable paid model inference")
+        parser.error("pass --live to enable live model inference")
     if not 1 <= args.max_model_calls <= 40:
         parser.error("--max-model-calls must be in the range 1..40")
     try:

@@ -1,10 +1,22 @@
 services:
+  ollama:
+    image: ollama/ollama
+    profiles: ["ollama"]
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   verifier:
     build: .
     command: ["uv", "run", "python", "-m", "agents.verifier.main"]
     env_file: .env
     environment:
       ADPROOF_RUNTIME_DIR: /runtime
+      OLLAMA_BASE_URL: http://ollama:11434
       VERIFIER_HOST: verifier
       ORCHESTRATOR_HOST: orchestrator
       REMEDIATOR_HOST: remediator
@@ -22,6 +34,7 @@ services:
     env_file: .env
     environment:
       ADPROOF_RUNTIME_DIR: /runtime
+      OLLAMA_BASE_URL: http://ollama:11434
       VERIFIER_HOST: verifier
       ORCHESTRATOR_HOST: orchestrator
       REMEDIATOR_HOST: remediator
@@ -40,6 +53,7 @@ services:
     environment:
       ADPROOF_RUNTIME_DIR: /runtime
       ADPROOF_MAILBOX_ENABLED: ${ADPROOF_MAILBOX_ENABLED:-0}
+      OLLAMA_BASE_URL: http://ollama:11434
       ORCHESTRATOR_HOST: orchestrator
       VERIFIER_HOST: verifier
       REMEDIATOR_HOST: remediator
@@ -60,3 +74,4 @@ services:
 
 volumes:
   runtime:
+  ollama_models:

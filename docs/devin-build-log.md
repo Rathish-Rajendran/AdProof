@@ -1,5 +1,27 @@
 # Devin build log
 
+## Earlier temporary Ollama defaults; current Gemini default
+
+The user temporarily approved Ollama as the default provider during local-model evaluation, then moved back to paid Gemini. The current default for all jobs is `gemini:gemini-3.5-flash`, served as `gemini-3.6-flash` in live calls; Ollama with `qwen2.5vl:3b` for image inspection and `qwen2.5:3b` for text remains opt-in. The prior 3B runs mostly ended in `HUMAN_REVIEW`. The 7B vision/text pair is a higher-capacity local option, slower on CPU; its partial evaluation below did not demonstrate a quality improvement. The original CPU-only probes on an 8-core, 31 GB host measured `qwen2.5vl:3b` reading the only-$49 image in 42 seconds including model load and splitting unsafe copy into four atomic claims in 10 seconds. `gemma3:4b` also returned correct results but took 71 seconds and 46 seconds, respectively; those measurements are not benchmarks for the 7B pair.
+
+The vision model is used only for the job that reads image pixels; text jobs use a text-only model for instruction following and JSON at lower latency, and copy remediation shares that model because application code validates numeric changes. Small local models may be less accurate than Gemini and slower on CPU. The workflow deadline is configurable and defaults to 600 seconds. A job can use Gemini by setting its model variable to a spec such as `gemini:gemini-3.5-flash`; the key is needed only when a Gemini job is called. The workflow can be restarted with a different mapping without a code change.
+
+## 2026-10-18 — Per-job model routing
+
+Added validated `<provider>:<model>` settings, split on the first colon so Ollama tags such as `qwen2.5:7b` are preserved. At the time, image inspection used `ollama:qwen2.5vl:3b` and text jobs inherited `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b`; current defaults are Gemini for every job unless individually overridden. Legacy `ADPROOF_MODEL_PROVIDER`, `OLLAMA_MODEL`, and `GEMINI_MODEL` configurations derive the default when `ADPROOF_MODEL_DEFAULT` is unset. The router constructs provider clients lazily and shares the call budget; audit reports and live evaluation outputs record the resolved spec for each job.
+
+## 2026-10-18 — Latency-driven model change
+
+The user asked to prioritize fast responses until paid Gemini access is available. After the user approved pulling `qwen2.5:3b`, the 7B run `78a7d6d3d53d4a08b3301f5d01bbf93e` was stopped for latency. Its completed case 1 took 185.380 s and returned `HUMAN_REVIEW` instead of `FIX_REQUIRED`, with all four claims `INSUFFICIENT_EVIDENCE` and four `INVALID_EVIDENCE` quote errors. Completed case 2 took 83.552 s and returned `HUMAN_REVIEW` instead of `PASS`, with all three claims `INSUFFICIENT_EVIDENCE` and three invalid-quote errors. Case 3 was interrupted while `VERIFYING`; case 4 was not run. The run had no final JSON, so call records are unavailable.
+
+## 2026-10-18 — Per-job 3B case-1 evaluation
+
+Run `66161b7a70df405790ff7d8feb85e4f2` used `qwen2.5vl:3b` for image inspection and `qwen2.5:3b` for text, with 3 of 12 calls. Case 1 completed with `HUMAN_REVIEW` instead of `FIX_REQUIRED` in 93.629 s workflow time (93.637 s wall). The model extracted waterproof, 48-hour battery, and athlete endorsement claims, all `INSUFFICIENT_EVIDENCE`, but omitted the 50%-discount claim. Image coverage triggered `UNSUPPORTED_CONTEXT`; no invalid quote errors occurred and no repair was proposed. The report is `runtime/eval/66161b7a70df405790ff7d8feb85e4f2.json`.
+
+## 2026-10-18 — Ollama live evaluation
+
+The requested four-case evaluation ran with `ADPROOF_MODEL_PROVIDER=ollama`, `qwen2.5vl:3b`, and a 40-call budget. It used 13 calls. Cases 1, 2, and 4 returned `HUMAN_REVIEW` rather than the expected `FIX_REQUIRED`, `PASS`, and `PASS`; the model returned `INSUFFICIENT_EVIDENCE` for the extracted claims, and cases 1, 2, and 4 had partial image coverage. Case 2 also produced quotes rejected by the verifier because they did not occur in the normalized source. Case 3 returned the expected `FIX_REQUIRED`, but the original and revised audits did not report the `$49` image mismatch; its proposed copy retained the `50% off` claim and the endorsement. The artifact does not preserve raw image observations, so the exact reason the image mismatch was absent is unverified. These results show that the full workflow is materially less accurate than the user's isolated probes suggested. No prompt or default-model change was made; full per-case claim, timing, and artifact details are in `docs/validation-status.md`.
+
 ## 2026-10-18 — M0 through M4 implementation
 
 - Baseline repository commit `b580bd3` contained only the initial README and ignore rules; no live app or registered identities were present in this checkout.
