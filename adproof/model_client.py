@@ -58,7 +58,7 @@ class GoogleGenAIClient:
         self,
         *,
         api_key: str | None = None,
-        model: str = "gemini-3.8-flash",
+        model: str = "gemini-3.5-flash",
         budget: ModelCallBudget | None = None,
     ):
         self.model = model
@@ -141,6 +141,7 @@ class GoogleGenAIClient:
                     {
                         "purpose": purpose,
                         "model": self.model,
+                        "reported_model_version": None,
                         "latency_seconds": time.monotonic() - call_started,
                         "error": TypedErrorCode.TIMEOUT.value,
                     }
@@ -173,6 +174,7 @@ class GoogleGenAIClient:
                     {
                         "purpose": purpose,
                         "model": self.model,
+                        "reported_model_version": None,
                         "latency_seconds": time.monotonic() - call_started,
                         "error": code.value,
                         "http_status": status_text,
@@ -215,6 +217,7 @@ class GoogleGenAIClient:
                     {
                         "purpose": purpose,
                         "model": self.model,
+                        "reported_model_version": getattr(response, "model_version", None),
                         "latency_seconds": time.monotonic() - call_started,
                         "error": TypedErrorCode.MODEL_MALFORMED_OUTPUT.value,
                     }
@@ -233,10 +236,12 @@ class GoogleGenAIClient:
                 "prompt_tokens": getattr(usage, "prompt_token_count", None),
                 "candidate_tokens": getattr(usage, "candidates_token_count", None),
             }
+            reported_model_version = getattr(response, "model_version", None)
             self.call_records.append(
                 {
                     "purpose": purpose,
-                    "model": getattr(response, "model_version", None) or self.model,
+                    "model": reported_model_version or self.model,
+                    "reported_model_version": reported_model_version,
                     "latency_seconds": time.monotonic() - call_started,
                     "usage": usage_values,
                 }

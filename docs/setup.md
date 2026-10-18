@@ -13,7 +13,7 @@ uv run python -m adproof.preflight --offline
 uv run python -m adproof.demo --mode mock
 ```
 
-The offline suite requires no keys. MOCK is an explicit deterministic demonstration only. LIVE requires a privately configured `GEMINI_API_KEY`; `GEMINI_MODEL` selects the model and defaults to `gemini-3.8-flash`. `SENTRY_DSN` is optional and must not affect audit outcomes.
+The offline suite requires no keys. MOCK is an explicit deterministic demonstration only. LIVE requires a privately configured `GEMINI_API_KEY`; `GEMINI_MODEL` selects the model and defaults to `gemini-3.5-flash`. `SENTRY_DSN` is optional and must not affect audit outcomes.
 
 ## Three-agent local runtime
 
@@ -32,7 +32,7 @@ The transport proof command runs a test ACP client and verifies delayed replies 
 bash scripts/run_transport_proof.sh
 ```
 
-The mailbox switch is disabled by default. For Agentverse/ASI:One, set `ADPROOF_MAILBOX_ENABLED=1` and keep the orchestrator running on a reachable host. Specialists retain explicit local HTTP endpoints and a resolver map. The mailbox-mode local reachability proof remains PENDING; do not infer public discovery from local tests.
+The mailbox switch is disabled by default. For Agentverse/ASI:One, set `ADPROOF_MAILBOX_ENABLED=1` and keep the orchestrator running on a reachable host. Specialists retain explicit local HTTP endpoints and a resolver map. The mailbox-mode local reachability proof passed; public discovery still requires mailbox creation and funded contract registration. See `docs/validation-status.md`.
 
 ## Docker Compose
 

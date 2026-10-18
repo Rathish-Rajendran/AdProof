@@ -28,7 +28,7 @@ The explicit MOCK command is an offline demonstration, not a model benchmark. Fo
 
 - `MOCK` must be selected explicitly and uses deterministic fixtures.
 - `LIVE` uses the configured Gemini model and real supplied HTTPS sources. Errors remain typed errors; it never falls back to fixture outputs.
-- `GEMINI_MODEL` is configurable; the current default is `gemini-3.8-flash`. Live inference can incur provider charges. Keep credentials in the environment or a secret manager, never in source control.
+- `GEMINI_MODEL` is configurable; the default is `gemini-3.5-flash`. Live inference can incur provider charges. Keep credentials in the environment or a secret manager, never in source control.
 - `uv run python -m adproof.eval --live --cases 1,2,3,4 --max-model-calls 20` runs the bounded synthetic live evaluation and writes a JSON report beneath `runtime/eval/`.
 
 ## Runtime and limits

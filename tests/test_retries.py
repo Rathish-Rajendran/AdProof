@@ -252,7 +252,7 @@ async def test_genai_client_retries_one_transient_503_and_charges_both_calls(mon
             raise _ModelApiError(503, "UNAVAILABLE")
         return SimpleNamespace(
             text='{"ok":true}',
-            model_version="gemini-3.8-flash",
+            model_version="gemini-3.6-flash",
             usage_metadata=None,
         )
 
@@ -268,6 +268,8 @@ async def test_genai_client_retries_one_transient_503_and_charges_both_calls(mon
     assert response.data.ok is True
     assert calls == 2
     assert budget.consumed == 2
+    assert model.call_records[0]["reported_model_version"] is None
+    assert model.call_records[1]["reported_model_version"] == "gemini-3.6-flash"
 
 
 @pytest.mark.asyncio

@@ -9,7 +9,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class Settings:
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.5-flash"
     sentry_dsn: str | None = None
     sentry_environment: str = "development"
     sentry_traces_sample_rate: float = 0.0
@@ -18,7 +18,7 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
-            gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+            gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
             sentry_dsn=os.getenv("SENTRY_DSN") or None,
             sentry_environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
             sentry_traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0")),

@@ -24,6 +24,7 @@ from adproof.domain.models import (
     TypedErrorCode,
     VerificationResult,
 )
+from adproof.eval import _reported_model_versions
 from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.safe_http import FetchedSource
 from adproof.infrastructure.settings import Settings
@@ -243,6 +244,20 @@ CASES = {
         ),
     ),
 }
+
+
+def test_reported_model_versions_use_successful_provider_calls_only() -> None:
+    calls = [
+        {
+            "model": "gemini-3.6-flash",
+            "reported_model_version": "gemini-3.6-flash",
+            "purpose": "image_inspection",
+        },
+        {"model": "gemini-3.5-flash", "reported_model_version": None},
+        {"model": "gemini-3.5-flash", "error": "MODEL_UNAVAILABLE"},
+    ]
+
+    assert _reported_model_versions(calls) == ["gemini-3.6-flash"]
 
 
 def _test_names(path: str) -> set[str]:

@@ -36,6 +36,16 @@ EXPECTED_DECISIONS = {
 }
 
 
+def _reported_model_versions(calls: list[dict[str, Any]]) -> list[str]:
+    return sorted(
+        {
+            str(call["reported_model_version"])
+            for call in calls
+            if call.get("reported_model_version") and not call.get("error")
+        }
+    )
+
+
 async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> dict[str, Any]:
     settings = Settings.from_env()
     initialize_telemetry(settings, role="evaluation")
@@ -56,10 +66,11 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 results.append(
                     {
                         "case": case_number,
-                        "model_version": settings.gemini_model,
+                        "configured_model": settings.gemini_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": "SKIPPED",
                         "skip_reason": "shared model-call budget exhausted",
+                        "reported_model_versions": [],
                         "calls": [],
                     }
                 )
@@ -96,10 +107,11 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 claims = report.original_audit.claims if report.original_audit else []
                 evidence = report.original_audit.evidence if report.original_audit else []
                 evidence_ids = {item.id for item in evidence}
+                case_calls = model.call_records[call_start:]
                 results.append(
                     {
                         "case": case_number,
-                        "model_version": settings.gemini_model,
+                        "configured_model": settings.gemini_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": report.final_decision.value,
                         "workflow_status": report.workflow_status.value,
@@ -113,8 +125,9 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                             for evidence_id in claim.evidence_ids
                         ),
                         "model_versions": report.model_versions,
-                        "model_call_count": len(model.call_records) - call_start,
-                        "calls": model.call_records[call_start:],
+                        "reported_model_versions": _reported_model_versions(case_calls),
+                        "model_call_count": len(case_calls),
+                        "calls": case_calls,
                         "timings_seconds": {
                             "workflow": report.timings.get("total_seconds"),
                             "wall": (datetime.now(UTC) - started).total_seconds(),
@@ -123,15 +136,17 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                     }
                 )
             except Exception as exc:
+                case_calls = model.call_records[call_start:]
                 results.append(
                     {
                         "case": case_number,
-                        "model_version": settings.gemini_model,
+                        "configured_model": settings.gemini_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": "ERROR",
                         "error_type": type(exc).__name__,
-                        "model_call_count": len(model.call_records) - call_start,
-                        "calls": model.call_records[call_start:],
+                        "reported_model_versions": _reported_model_versions(case_calls),
+                        "model_call_count": len(case_calls),
+                        "calls": case_calls,
                     }
                 )
     finally:
@@ -139,7 +154,10 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
     result = {
         "run_id": run_id,
         "timestamp": datetime.now(UTC).isoformat(),
-        "model_version": settings.gemini_model,
+        "configured_model": settings.gemini_model,
+        "reported_model_versions": sorted(
+            {version for result in results for version in result.get("reported_model_versions", [])}
+        ),
         "model_call_budget": max_model_calls,
         "model_calls_used": budget.consumed,
         "sample_size": len(results),

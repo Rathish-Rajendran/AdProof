@@ -18,3 +18,9 @@
 - The three-process live workflow reached verification but could not complete repair/reverification because Gemini returned typed HTTP 503 errors. A model-failure path initially exposed an uninitialized evidence map; it was fixed and regression-tested. No full live repair success is claimed.
 - `SENTRY_ENVIRONMENT=devin-dev` was bound for smokes. Local traceparents were emitted, but Sentry account ingestion was not independently verified. Local agents emitted inspector URLs and Almanac API registration success; unfunded contract-registration warnings appeared. No public deployment or ASI:One registration was attempted.
 - Public fixtures are pinned in `data/fixtures/demo_manifest.json`; `curl` confirmed HTTP 200, expected MIME types, and matching SHA-256 hashes for all five assets. The demo campaign uses the immutable URLs from fixture commit `535748301de3aefdf3510a2f9136f865900f2657`.
+
+## User-approved Gemini default change
+
+The user approved changing the configurable default from `gemini-3.8-flash` to `gemini-3.5-flash` after `gemini-3.8-flash` returned HTTP 429 `RESOURCE_EXHAUSTED` due to quota exhaustion on this key. The API-reported served model version is recorded separately from the configured ID; the provider reports `gemini-3.6-flash` for this selection. No prompt changes or silent model substitutions are made.
+
+The first post-switch live evaluation used 8 of 40 allowed calls: cases 1 and 2 matched expected decisions; cases 3 and 4 stopped on non-retryable HTTP 429 quota errors. Case 1's decision was correct, but its repair workflow was partial due to equivalent numeric formatting being rejected; the deterministic validator was corrected with an offline regression test. The mailbox-enabled ACP run reached image inspection but hit HTTP 503 during verification, before repair or re-verification. Exact outcomes are in `docs/validation-status.md`.
