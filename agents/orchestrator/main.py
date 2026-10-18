@@ -21,7 +21,7 @@ from uagents_core.contrib.protocols.chat import (
     chat_protocol_spec,
 )
 
-from adproof.domain.models import AuditReport, CampaignInput, ExecutionMode
+from adproof.domain.models import AuditReport, CampaignInput, ExecutionMode, Issue
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry, record_event
 from adproof.orchestrator.cards import (
@@ -43,6 +43,10 @@ class HealthResponse(Model):
 
 _LEADING_MENTIONS = re.compile(r"^(?:\s*@[\w.\-]+[,:]?)+\s*")
 _FENCED_JSON = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.IGNORECASE | re.DOTALL)
+_SCOPE_LINE = (
+    "_Scope: Google Ads · US · English · adult consumer electronics. "
+    "Bounded preflight — not legal advice or platform certification._"
+)
 _owner_limiter = OwnerAuditLimiter(limit=2)
 
 
@@ -88,26 +92,80 @@ def _campaign_from_text(text: str) -> CampaignInput:
 
 def _render_report(report: Any) -> str:
     lines = [
-        f"Audit {report.audit_id}: AdProof preflight {report.final_decision.value}",
-        f"Workflow: {report.workflow_status.value}; selected candidate: {report.selected_candidate_id}",
-        report.final_decision_basis,
-        "Scope: Google Ads / US / English / adult-targeted consumer electronics. Not legal advice or platform certification.",
+        f"## AdProof preflight: **{report.final_decision.value}**",
+        f"Audit `{report.audit_id}` · workflow {report.workflow_status.value} · "
+        f"repair verified: {'yes' if report.repair_verified else 'no'}",
+        "",
+        f"**Basis:** {report.final_decision_basis}",
     ]
     if report.original_audit:
-        lines.append(f"Original audit: {report.original_audit.decision.value}")
-        for issue in report.original_audit.issues:
-            lines.append(f"- {issue.category.value} ({issue.action.value}): {issue.explanation}")
+        lines.extend(["", f"### Original audit — {report.original_audit.decision.value}"])
+        lines.extend(_render_issues(report.original_audit.issues))
     if report.repair_proposal:
-        lines.append(f"Repair proposal: {report.repair_proposal.repaired_copy}")
+        lines.extend(["", "### Proposed repair (copy only)"])
+        lines.extend(
+            f"> {line}" for line in report.repair_proposal.repaired_copy.splitlines() or [""]
+        )
         if report.repair_proposal.image_edit_instructions:
-            lines.append("Unchanged-image issues remain:")
-            lines.extend(f"- {item}" for item in report.repair_proposal.image_edit_instructions)
+            lines.extend(
+                [
+                    "",
+                    "Image issues a copy edit cannot fix:",
+                    *(f"- {item}" for item in report.repair_proposal.image_edit_instructions),
+                ]
+            )
     if report.revised_audit:
-        lines.append(f"Re-verification: {report.revised_audit.decision.value}")
+        lines.extend(["", f"### Independent re-check — {report.revised_audit.decision.value}"])
+        if report.revised_audit.issues:
+            lines.extend(_render_issues(report.revised_audit.issues))
+        else:
+            lines.append("No unresolved issues within the checked scope.")
     if report.errors:
-        lines.append("Processing notes:")
-        lines.extend(f"- {error.code.value}: {error.message}" for error in report.errors)
+        notes = list(dict.fromkeys((error.code.value, error.message) for error in report.errors))
+        lines.extend(["", "### Processing notes"])
+        lines.extend(f"- `{code}` — {message}" for code, message in notes)
+    lines.extend(["", "---", "", _SCOPE_LINE])
     return "\n".join(lines)
+
+
+def _render_issues(issues: list[Issue]) -> list[str]:
+    lines = []
+    for number, issue in enumerate(issues, start=1):
+        category = issue.category.value.replace("_", " ").title()
+        line = f"{number}. **{category}** ({issue.action.value.lower()}) — {issue.explanation}"
+        if issue.policy_reference:
+            line += f" · _Rule: {issue.policy_reference}_"
+        lines.append(line)
+    return lines
+
+
+def _help_message() -> str:
+    return "\n".join(
+        [
+            "## AdProof commands",
+            "- `demo aerobeat` — Audit the unsafe AeroBeat ad and attempt one copy-only repair.",
+            "- `demo aerobeat49` — Show that a copy repair cannot fix the `$49` image.",
+            "- `demo aerobeat correct` — Audit the already-correct AeroBeat ad.",
+            "- `example` — Show an example campaign input.",
+            "- `status <audit_id>` — Show an audit's current state.",
+            "- `report <audit_id>` — Show a saved audit report.",
+            "- Fenced `CampaignInput` JSON — Submit a campaign as JSON.",
+            "- `Image:` / `Copy:` / `Page:` — Submit one field per line.",
+            "",
+            _SCOPE_LINE,
+        ]
+    )
+
+
+def _welcome_message() -> str:
+    return "\n".join(
+        [
+            "## Welcome to AdProof",
+            "Send `help` for commands.",
+            "",
+            _SCOPE_LINE,
+        ]
+    )
 
 
 def run() -> None:
@@ -201,10 +259,7 @@ def run() -> None:
         if len(text.encode("utf-8")) > 16 * 1024:
             reply = "Message exceeds the 16 KiB intake limit."
         elif any(isinstance(item, StartSessionContent) for item in message.content):
-            reply = (
-                "Welcome to AdProof. Send `help` for commands. This is bounded advertising "
-                "preflight, not legal advice or platform certification."
-            )
+            reply = _welcome_message()
         elif (
             lowered in {"probe delayed", "probe timeout"}
             and os.getenv("ADPROOF_TRANSPORT_PROBE") == "1"
@@ -240,11 +295,7 @@ def run() -> None:
                 else:
                     reply = f"specialist_error={result.value}; intake_session={ctx.session}"
         elif lowered in {"help", "?"}:
-            reply = (
-                "Send `example`, `demo aerobeat`, `demo aerobeat49`, `demo aerobeat correct`, "
-                "`status <audit_id>`, `report <audit_id>`, "
-                "a fenced CampaignInput JSON object, or Image:/Copy:/Page: fields."
-            )
+            reply = _help_message()
         elif lowered == "example":
             example_path = root / "schemas/examples/CampaignInput.json"
             reply = example_path.read_text(encoding="utf-8")
@@ -288,7 +339,7 @@ def run() -> None:
             if stored is None:
                 reply = "No audit with that ID is available to this chat session."
             elif command.casefold() == "status":
-                reply = f"Audit {audit_id.strip()}: {stored['state']}"
+                reply = f"**Audit** `{audit_id.strip()}`: {stored['state']}"
                 report_data = stored.get("payload", {}).get("report")
                 if report_data:
                     result_card = create_result_card(AuditReport.model_validate(report_data))
