@@ -34,7 +34,15 @@ class Check(TypedDict):
 
 def score_checks(report: AuditReport) -> list[Check]:
     """Evaluate deterministic checks against the final audit in a report."""
-    audit = _final_audit(report)
+    return _score_checks(report, _final_audit(report), include_report_errors=True)
+
+
+def _score_checks(
+    report: AuditReport,
+    audit: VerificationResult | None,
+    *,
+    include_report_errors: bool,
+) -> list[Check]:
     if audit is None:
         reason = report.errors[0].message if report.errors else "Verification did not finish."
         return [{"name": "verification", "passed": False, "reason": reason}]
@@ -86,7 +94,7 @@ def score_checks(report: AuditReport) -> list[Check]:
             "reason": None if not audit.issues else audit.issues[0].explanation,
         }
     )
-    errors = [*audit.errors, *report.errors]
+    errors = [*audit.errors, *(report.errors if include_report_errors else [])]
     checks.append(
         {
             "name": "no_processing_errors",
@@ -99,6 +107,31 @@ def score_checks(report: AuditReport) -> list[Check]:
 
 def report_summary(report: AuditReport) -> dict[str, Any]:
     """Build the compact deterministic JSON report."""
+    if report.check_input_type == "image" and report.original_audit is not None:
+        original_checks = _score_checks(
+            report,
+            report.original_audit,
+            include_report_errors=False,
+        )
+        if any(not check["passed"] for check in original_checks):
+            compliance = _compliance_summary(original_checks, report.original_audit)
+            issue_count = sum(
+                check["name"].startswith("claim: ") and not check["passed"]
+                for check in original_checks
+            )
+            return {
+                "audit_id": report.audit_id,
+                "needs_review": True,
+                "confidence": _confidence(original_checks),
+                "summary": (
+                    f"Needs review: the image has {issue_count} non-compliant claim(s); "
+                    "suggested replacement text is in fixed_text."
+                ),
+                "ad": _ad_summary(report),
+                "compliance": compliance,
+                "claims": _claims_summary(report.original_audit),
+            }
+
     final_audit = _final_audit(report)
     checks = score_checks(report)
     confidence = _confidence(checks)

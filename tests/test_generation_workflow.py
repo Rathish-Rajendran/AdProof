@@ -27,6 +27,8 @@ from adproof.generator.workflow import run_generation_workflow
 from adproof.infrastructure.settings import Settings
 from adproof.model_client import FakeModelClient
 from adproof.orchestrator.report_view import (
+    _compliance_summary,
+    _score_checks,
     render_generation_failure,
     render_report,
     report_summary,
@@ -602,6 +604,7 @@ async def test_text_check_repairs_once_rechecks_and_returns_compact_shape():
     rendered = report_summary(report)
     assert report.repair_verified
     assert report.final_decision == Decision.PASS
+    assert rendered["needs_review"] is False
     assert rendered["summary"].startswith(
         "The first draft had 1 issues; it was fixed once and re-checked."
     )
@@ -747,6 +750,9 @@ async def test_uploaded_image_download_inspect_and_audit_returns_image_shape(mon
     )
     parsed = _parse_rendered_report(render_report(report))
     assert inspector.calls == 1
+    assert parsed["needs_review"] is False
+    assert parsed["compliance"] == "OK"
+    assert parsed["summary"].startswith("Ready to run:")
     assert parsed["ad"] == {
         "type": "image",
         "detected_text": "AeroBeat AB-01 is splash-resistant for everyday use.",
@@ -794,9 +800,23 @@ async def test_image_check_can_fix_text_and_invalid_images_return_safe_json():
     )
     rendered = report_summary(report)
     assert rendered["ad"]["fixed_text"] == ("AeroBeat AB-01 is splash-resistant for everyday use.")
+    assert rendered["needs_review"] is True
+    assert rendered["confidence"] < 100
     assert rendered["summary"] == (
-        "Fixed once and re-checked: replace the image text with fixed_text."
+        "Needs review: the image has 1 non-compliant claim(s); "
+        "suggested replacement text is in fixed_text."
     )
+    original_claim = report.original_audit.claims[0]
+    assert rendered["compliance"] == _compliance_summary(
+        _score_checks(report, report.original_audit, include_report_errors=False),
+        report.original_audit,
+    )
+    assert any(
+        f'Claim "{original_claim.claim}" is contradicted:' in message
+        for message in rendered["compliance"]
+    )
+    assert rendered["claims"] == []
+    assert report.revised_audit.decision == Decision.PASS
     assert report.revised_audit.coverage.image.status == CoverageStatus.NOT_APPLICABLE
     _validate_check_payloads(report)
 

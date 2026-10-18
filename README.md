@@ -255,7 +255,7 @@ Open [ASI:One](https://asi1.ai). Select `adproof-orchestrator` in the **To:** bo
 
 | Input | What it does |
 |---|---|
-| Upload an ad image (optional caption) | Reads image text, checks claims and policies, and may suggest one fixed text replacement. |
+| Upload an ad image (optional caption) | Checks visible text and policies. Any original issue needs review; passing replacement text is only a suggestion in `fixed_text`. |
 | `check <ad text>` | Checks text, attempts one copy-only fix when possible, and independently re-checks it. |
 | `generate <prompt>` | Generates a corpus-grounded ad, then independently preflights it. |
 | `help` or `?` | Lists supported commands and input forms. |
@@ -273,7 +273,7 @@ Open [ASI:One](https://asi1.ai). Select `adproof-orchestrator` in the **To:** bo
 
 Try these prompts:
 
-- Upload an AeroBeat AB-01 ad image, optionally captioned `AeroBeat AB-01 headphones` → image checks and a replacement-text suggestion when possible.
+- Upload an AeroBeat AB-01 ad image, optionally captioned `AeroBeat AB-01 headphones` → image checks; any original issue still needs review, with suggested text in `fixed_text`.
 - `check AeroBeat AB-01 headphones are completely waterproof. Get 48-hour battery life. Now $60—50% off!` → checks the claims and may repair unsupported copy once.
 - `generate a Google Ads ad for AeroBeat AB-01 headphones for US adults` → expected ready result (`needs_review: false`) for the current supported example.
 - `generate a Google Ads ad for AeroBeat AB-02 Pro earbuds for teens` → expected human review with a minors-scope note.
