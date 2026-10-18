@@ -46,6 +46,25 @@ services:
       timeout: 3s
       retries: 5
 
+  generator:
+    build: .
+    command: ["uv", "run", "python", "-m", "agents.generator.main"]
+    env_file: .env
+    environment:
+      ADPROOF_RUNTIME_DIR: /runtime
+      OLLAMA_BASE_URL: http://ollama:11434
+      GENERATOR_HOST: generator
+      ORCHESTRATOR_HOST: orchestrator
+      VERIFIER_HOST: verifier
+      REMEDIATOR_HOST: remediator
+    volumes:
+      - runtime:/runtime
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8103/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   orchestrator:
     build: .
     command: ["uv", "run", "python", "-m", "agents.orchestrator.main"]
@@ -57,6 +76,7 @@ services:
       ORCHESTRATOR_HOST: orchestrator
       VERIFIER_HOST: verifier
       REMEDIATOR_HOST: remediator
+      GENERATOR_HOST: generator
     volumes:
       - runtime:/runtime
     ports:
@@ -65,6 +85,8 @@ services:
       verifier:
         condition: service_healthy
       remediator:
+        condition: service_healthy
+      generator:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=2)"]

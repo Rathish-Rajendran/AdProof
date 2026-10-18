@@ -42,7 +42,8 @@
         "COMPLETE",
         "PARTIAL",
         "FAILED",
-        "NOT_PROVIDED"
+        "NOT_PROVIDED",
+        "NOT_APPLICABLE"
       ],
       "title": "InspectionStatus",
       "type": "string"

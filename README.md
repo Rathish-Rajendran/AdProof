@@ -1,5 +1,7 @@
 # AdProof
 
+See [docs/policy-library.md](docs/policy-library.md) for the provenance-verified official policy reference library.
+
 ## 1. What AdProof does
 
 AdProof is a bounded, evidence-backed advertising preflight prototype. It extracts objective claims from one ad image and its copy, compares them with a supplied product page and bounded evidence, and identifies unsupported or contradictory claims. It may propose at most one minimal copy-only repair and independently audit the revision against the unchanged image. It never edits images or publishes ads.
@@ -10,11 +12,14 @@ flowchart LR
     B --> C[Orchestrator]
     C --> D[Verifier]
     C --> E[Remediator]
+    C --> H[Generator]
     D --> F["Gemini (default) / Ollama (optional)"]
     E --> F
+    H --> F
     C -. traces and logs .-> G[Sentry]
     D -. traces and logs .-> G
     E -. traces and logs .-> G
+    H -. traces and logs .-> G
 ```
 
 See the [architecture overview](docs/architecture.md) for component details.
@@ -49,6 +54,7 @@ uv sync --frozen
 uv run pytest -q
 uv run ruff check .
 uv run python -m adproof.demo --mode mock
+uv run python -m adproof.generate "Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults" --offline
 ```
 
 The explicit `--mode mock` demonstration is deterministic and offline. It does not call Gemini or establish live-model performance.
@@ -70,6 +76,9 @@ The default model spec is `ADPROOF_MODEL_DEFAULT=gemini:gemini-3.5-flash`; all j
 | Claim extraction | `ADPROOF_MODEL_CLAIM_EXTRACTION` | `gemini:gemini-3.5-flash` via the default | Text-only claim extraction. |
 | Evidence assessment | `ADPROOF_MODEL_EVIDENCE_ASSESSMENT` | `gemini:gemini-3.5-flash` via the default | Text-only evidence and quote checking. |
 | Copy remediation | `ADPROOF_MODEL_COPY_REMEDIATION` | `gemini:gemini-3.5-flash` via the default | Shares the text model; application code validates numeric changes. |
+| Ad generation | `ADPROOF_MODEL_AD_GENERATION` | `gemini:gemini-3.5-flash` via the default | Generates copy using retrieved company-corpus chunks. |
+
+The optional `uv run python -m adproof.generate "<prompt>" --offline` command uses deterministic fake generation and verification models while exercising the local corpus retrieval and repair workflow. Build the local hybrid index with `uv run python -m adproof.rag.index build`.
 
 Ollama with `qwen2.5:3b` for text and `qwen2.5vl:3b` for image inspection is an optional local alternative. To use it, set both `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b` and `ADPROOF_MODEL_IMAGE_INSPECTION=ollama:qwen2.5vl:3b`; the 3B local runs mostly ended in `HUMAN_REVIEW`. The 7B pair is a higher-capacity local option but slower on CPU, and its partial run did not establish a quality improvement. The vision model is reserved for the job that reads pixels; repair shares the text model because code validates numbers. Pull either pair from the Ollama host before use:
 
@@ -91,7 +100,7 @@ source .env
 set +a
 ```
 
-On first start, the runtime generates private identities in `runtime/agent-seeds.json` and writes their public addresses to `runtime/agents.json`. The seed file is gitignored and mode `0600`; back it up securely to preserve the agent addresses and mailbox identity. You may supply `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, and `REMEDIATOR_SEED` in `.env` instead. Never publish those values.
+On first start, the runtime generates private identities in `runtime/agent-seeds.json` and writes their public addresses to `runtime/agents.json`. The seed file is gitignored and mode `0600`; back it up securely to preserve the agent addresses and mailbox identity. You may supply `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, `REMEDIATOR_SEED`, and `GENERATOR_SEED` in `.env` instead. Never publish those values.
 
 ## 5. Live model evaluation
 
@@ -107,7 +116,7 @@ On an 8-core, 31 GB CPU-only machine, the user measured the `qwen2.5vl:3b` probe
 
 An earlier single-model four-case live run on 2026-10-18 did not meet expected quality: cases 1, 2, and 4 returned `HUMAN_REVIEW`, and case 3 did not identify the `$49` image issue. The current per-job case-1 result also returned `HUMAN_REVIEW` rather than `FIX_REQUIRED`. Treat local models as experimental; the detailed results and artifacts are in the [validation status](docs/validation-status.md).
 
-## 6. Start the three agents
+## 6. Start the four agents
 
 In the same shell where `.env` is exported:
 
@@ -115,7 +124,7 @@ In the same shell where `.env` is exported:
 bash scripts/run_all.sh
 ```
 
-The script prepares the runtime, starts the orchestrator, verifier, and remediator, and stays in the foreground. It prints `All local agents are healthy. Press Ctrl-C to stop them.` after the `/health` checks pass. Logs are `runtime/orchestrator.log`, `runtime/verifier.log`, and `runtime/remediator.log`; the orchestrator log contains the Agent inspector URL.
+The script prepares the runtime, starts the orchestrator, verifier, remediator, and generator, and stays in the foreground. It prints `All local agents are healthy. Press Ctrl-C to stop them.` after the `/health` checks pass. Logs are `runtime/orchestrator.log`, `runtime/verifier.log`, `runtime/remediator.log`, and `runtime/generator.log`; the orchestrator log contains the Agent inspector URL. The generator listens on port 8103.
 
 In a second terminal, load the environment there too, then check health and public addresses:
 
@@ -127,7 +136,7 @@ set +a
 uv run python -m adproof.status
 ```
 
-Healthy output lists `HEALTHY` for all three roles. Stop the foreground supervisor with Ctrl-C; it stops the child agents.
+Healthy output lists `HEALTHY` for all four roles. Stop the foreground supervisor with Ctrl-C; it stops the child agents.
 
 ## 7. Connect the orchestrator to Agentverse (mailbox)
 
@@ -202,7 +211,7 @@ docker compose --profile ollama exec ollama ollama pull qwen2.5vl:3b
 docker compose --profile ollama up --build -d
 ```
 
-Compose loads `.env` itself. The named `ollama_models` volume retains downloaded local models; the named `runtime` volume holds container identities across restarts. To retain the address already connected in Agentverse, privately copy the values from your existing `runtime/agent-seeds.json` into `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, and `REMEDIATOR_SEED` in `.env`; never print or commit them. Connect the mailbox using a browser on the Docker host, where port 8100 is published. Restart the Compose services after changing model settings.
+Compose loads `.env` itself. The named `ollama_models` volume retains downloaded local models; the named `runtime` volume holds container identities across restarts. To retain the address already connected in Agentverse, privately copy the values from your existing `runtime/agent-seeds.json` into `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, `REMEDIATOR_SEED`, and `GENERATOR_SEED` in `.env`; never print or commit them. Connect the mailbox using a browser on the Docker host, where port 8100 is published. Restart the Compose services after changing model settings.
 
 **Docker validation:** Docker is available in the validation environment; both `docker compose config -q` and `docker compose --profile ollama config -q` were validated using a temporary `.env` copied from `.env.example`. The full `docker compose up` was **not** tested in this validation.
 
@@ -232,6 +241,8 @@ These current public addresses are derived from the private seeds in `runtime/ag
 | Orchestrator | `agent1q0lpgrz6c80h2n5ns0vw5sq0wtrp8gkm92x3pl6n5hwru7z0f47977ntemy` |
 | Verifier | `agent1qv78z88d9lj2cmgf5yjg853ulc0sw8v4qmscar56wr8rqsn97xk9c08deh8` |
 | Remediator | `agent1qfc0a6u3lq3azyj93ptz3lkx6rkvhgggg5n7knx6g45fncl4f5qqqfwenq8` |
+
+The current runtime has not yet prepared the generator identity; its public address will be added to `runtime/agents.json` when the updated runtime is prepared (or derived from `GENERATOR_SEED` if supplied).
 
 ## Scope and limitations
 

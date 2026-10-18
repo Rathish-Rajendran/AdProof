@@ -87,7 +87,8 @@ class _AssessmentOutput(BaseModel):
 class VerificationDependencies:
     http: SafeHttpClient
     model: ModelClient
-    policy: PolicyEngine
+    policy: PolicyEngine | dict[str, PolicyEngine]
+    corpus_index: Any | None = None
     fetch_semaphore: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(4))
     model_semaphore: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(2))
     now: Any = lambda: datetime.now(UTC)
@@ -124,28 +125,67 @@ async def verify_campaign(
     dependencies: VerificationDependencies,
 ) -> VerificationResult:
     started = time.monotonic()
-    errors: list[TypedError] = []
-    page_task = asyncio.create_task(
-        _fetch_snapshot(
-            dependencies,
-            request.landing_page_url,
-            max_bytes=2 * 1024 * 1024,
-            source_type="landing_page",
-        )
+    policy = (
+        dependencies.policy.get(request.context.platform, dependencies.policy.get("google_ads"))
+        if isinstance(dependencies.policy, dict)
+        else dependencies.policy
     )
-    document_tasks = [
-        asyncio.create_task(
+    if policy is None:
+        policy = next(iter(dependencies.policy.values()))
+    errors: list[TypedError] = []
+    if request.corpus_mode:
+        document = (
+            dependencies.corpus_index.get_document(request.corpus_document_id)
+            if dependencies.corpus_index and request.corpus_document_id
+            else None
+        )
+        if document and document.url == request.landing_page_url:
+            page = normalize_source(
+                document.text.encode("utf-8"),
+                url=document.url,
+                content_type="text/plain",
+            )
+            page_evidence = Evidence(
+                id=f"corpus-{document.sha256[:16]}",
+                source_url=document.url,
+                excerpt=page.text[:3000],
+                source_type="company_corpus",
+                retrieved_at=dependencies.now(),
+                document_id=document.doc_id,
+                snapshot_id=f"corpus:{document.sha256}",
+                content_sha256=document.sha256,
+                locator=f"{document.doc_id}#page",
+            )
+            fetched_results = [(page, page_evidence, None)]
+        else:
+            error = TypedError(
+                code=TypedErrorCode.SOURCE_UNAVAILABLE,
+                message="The requested product page is not present in the local corpus.",
+                source=request.landing_page_url,
+            )
+            fetched_results = [(None, None, error)]
+    else:
+        page_task = asyncio.create_task(
             _fetch_snapshot(
                 dependencies,
-                document.url,
+                request.landing_page_url,
                 max_bytes=2 * 1024 * 1024,
-                source_type=document.source_type,
+                source_type="landing_page",
             )
         )
-        for document in request.evidence_documents
-    ]
-    with stage_span("source_fetch_and_normalize", audit_id=request.audit_id, role="verifier"):
-        fetched_results = await asyncio.gather(page_task, *document_tasks)
+        document_tasks = [
+            asyncio.create_task(
+                _fetch_snapshot(
+                    dependencies,
+                    document.url,
+                    max_bytes=2 * 1024 * 1024,
+                    source_type=document.source_type,
+                )
+            )
+            for document in request.evidence_documents
+        ]
+        with stage_span("source_fetch_and_normalize", audit_id=request.audit_id, role="verifier"):
+            fetched_results = await asyncio.gather(page_task, *document_tasks)
     page, page_evidence, page_error = fetched_results[0]
     if page_error:
         errors.append(page_error)
@@ -195,6 +235,38 @@ async def verify_campaign(
             )
             for index, item in enumerate(extracted)
         ]
+        claim_chunk_indices: dict[str, list[int]] = {}
+        if request.corpus_mode and dependencies.corpus_index:
+            for item in proposed:
+                chunks = dependencies.corpus_index.retrieve(item.claim, top_k=6)
+                indices: list[int] = []
+                for chunk in chunks:
+                    if any(evidence_item.locator == chunk.chunk_id for evidence_item in evidence):
+                        indices.append(
+                            next(
+                                index
+                                for index, evidence_item in enumerate(evidence)
+                                if evidence_item.locator == chunk.chunk_id
+                            )
+                        )
+                        continue
+                    index = len(source_texts)
+                    source_texts.append(chunk.text)
+                    evidence.append(
+                        Evidence(
+                            id=f"corpus-{chunk.sha256[:16]}",
+                            source_url=chunk.url,
+                            excerpt=chunk.text,
+                            source_type="company_corpus",
+                            retrieved_at=dependencies.now(),
+                            document_id=chunk.doc_id,
+                            snapshot_id=f"corpus:{chunk.sha256}",
+                            content_sha256=chunk.sha256,
+                            locator=chunk.chunk_id,
+                        )
+                    )
+                    indices.append(index)
+                claim_chunk_indices[item.id] = indices
         with stage_span("evidence_assessment", audit_id=request.audit_id, role="verifier"):
             assessment_data = await dependencies.model.generate_json(
                 [
@@ -208,6 +280,12 @@ async def verify_campaign(
                             {"index": index, "text": text[:5000]}
                             for index, text in enumerate(source_texts)
                         ]
+                    )
+                    + (
+                        "\nCLAIM-SPECIFIC RETRIEVED SOURCE INDICES:\n"
+                        + json.dumps(claim_chunk_indices)
+                        if request.corpus_mode
+                        else ""
                     ),
                 ],
                 _AssessmentOutput,
@@ -259,12 +337,20 @@ async def verify_campaign(
                     assessment.source_index is None
                     or assessment.source_index >= len(source_texts)
                     or assessment.source_index < 0
+                    or (
+                        request.corpus_mode
+                        and assessment.source_index not in claim_chunk_indices.get(item.id, [])
+                    )
                     or assessment.quote not in source_texts[assessment.source_index]
                 ):
                     errors.append(
                         TypedError(
                             code=TypedErrorCode.INVALID_EVIDENCE,
-                            message=f"Claim {item.id} quote did not occur in the normalized source.",
+                            message=(
+                                f"Claim {item.id} quote did not occur in its retrieved corpus source."
+                                if request.corpus_mode
+                                else f"Claim {item.id} quote did not occur in the normalized source."
+                            ),
                         )
                     )
                     updated = updated.model_copy(
@@ -316,7 +402,7 @@ async def verify_campaign(
         _apply_image_consistency(request, claims, issues, source_texts, evidence)
         _apply_claim_issues(claims, issues)
     with stage_span("policy_evaluation", audit_id=request.audit_id, role="verifier"):
-        policy_checks, policy_coverage, policy_issues = dependencies.policy.evaluate(
+        policy_checks, policy_coverage, policy_issues = policy.evaluate(
             context=request.context,
             claims=claims,
             valid_evidence_ids=valid_evidence_ids,
@@ -340,22 +426,26 @@ async def verify_campaign(
             else "One or more supplied documents could not be read.",
         ),
         image=CoverageItem(
-            status=CoverageStatus.CHECKED
+            status=CoverageStatus.NOT_APPLICABLE
+            if request.image_inspection_status == InspectionStatus.NOT_APPLICABLE
+            else CoverageStatus.CHECKED
             if request.image_inspection_status == InspectionStatus.COMPLETE
             else CoverageStatus.PARTIAL,
             reason=None
-            if request.image_inspection_status == InspectionStatus.COMPLETE
+            if request.image_inspection_status
+            in {InspectionStatus.COMPLETE, InspectionStatus.NOT_APPLICABLE}
             else f"Image inspection status: {request.image_inspection_status.value}",
         ),
         platform_policy=policy_coverage,
     )
     material_uncertainty = bool(
-        request.context.platform != dependencies.policy.pack.platform
-        or request.context.jurisdiction != dependencies.policy.pack.jurisdiction
-        or request.context.language != dependencies.policy.pack.language
-        or request.context.product_category != dependencies.policy.pack.category
-        or request.context.audience != dependencies.policy.pack.audience
-        or request.image_inspection_status != InspectionStatus.COMPLETE
+        request.context.platform != policy.pack.platform
+        or request.context.jurisdiction != policy.pack.jurisdiction
+        or request.context.language != policy.pack.language
+        or request.context.product_category != policy.pack.category
+        or request.context.audience != policy.pack.audience
+        or request.image_inspection_status
+        not in {InspectionStatus.COMPLETE, InspectionStatus.NOT_APPLICABLE}
     )
     if material_uncertainty:
         errors.append(
@@ -364,30 +454,19 @@ async def verify_campaign(
                 message="The supplied context or image coverage is outside the complete supported scope.",
             )
         )
-    audit_complete = (
-        page is not None
-        and not errors
-        and all(
-            item.status == CoverageStatus.CHECKED
-            for item in (
-                coverage.ad_text,
-                coverage.landing_page,
-                coverage.image,
-                coverage.platform_policy,
-            )
+    coverage_complete = all(
+        item.status in {CoverageStatus.CHECKED, CoverageStatus.NOT_APPLICABLE}
+        for item in (
+            coverage.ad_text,
+            coverage.landing_page,
+            coverage.image,
+            coverage.platform_policy,
         )
     )
+    audit_complete = page is not None and not errors and coverage_complete
     decision = decide(
         issues=issues,
-        coverage_complete=all(
-            item.status == CoverageStatus.CHECKED
-            for item in (
-                coverage.ad_text,
-                coverage.landing_page,
-                coverage.image,
-                coverage.platform_policy,
-            )
-        ),
+        coverage_complete=coverage_complete,
         material_uncertainty=material_uncertainty,
         processing_failed=not audit_complete,
         errors=errors,
@@ -411,7 +490,7 @@ async def verify_campaign(
         issues=issues,
         coverage=coverage,
         policy_checks=policy_checks,
-        policy_catalog_version=dependencies.policy.version,
+        policy_catalog_version=policy.version,
         errors=errors,
         ignored_statements=ignored,
         metrics={"wall_seconds": time.monotonic() - started},

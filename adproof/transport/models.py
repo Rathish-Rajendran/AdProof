@@ -13,6 +13,7 @@ MAX_ENVELOPE_BYTES = 32 * 1024
 class SpecialistOperation(StrEnum):
     VERIFY = "VERIFY"
     REPAIR = "REPAIR"
+    GENERATE = "GENERATE"
 
 
 class SpecialistTask(Model):

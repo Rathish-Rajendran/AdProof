@@ -27,6 +27,7 @@ def test_gemini_is_the_default_provider(monkeypatch) -> None:
         "claim_extraction": "gemini:gemini-3.5-flash",
         "evidence_assessment": "gemini:gemini-3.5-flash",
         "copy_remediation": "gemini:gemini-3.5-flash",
+        "ad_generation": "gemini:gemini-3.5-flash",
     }
     assert settings.ollama_base_url == "http://127.0.0.1:11434"
     assert settings.workflow_deadline_seconds == 600
@@ -67,4 +68,5 @@ def test_per_job_environment_specs_override_or_fall_back(monkeypatch) -> None:
         "claim_extraction": "ollama:qwen2.5:7b",
         "evidence_assessment": "gemini:gemini-3.5-flash",
         "copy_remediation": "ollama:qwen2.5:7b",
+        "ad_generation": "ollama:qwen2.5:7b",
     }

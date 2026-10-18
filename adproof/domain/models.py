@@ -41,6 +41,7 @@ class InspectionStatus(StrEnum):
     PARTIAL = "PARTIAL"
     FAILED = "FAILED"
     NOT_PROVIDED = "NOT_PROVIDED"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 class ObservationKind(StrEnum):
@@ -253,6 +254,8 @@ class VerificationRequest(StrictModel):
     product_context: dict[str, Any] = Field(default_factory=dict)
     image_observations: list[Observation] = Field(default_factory=list)
     image_inspection_status: InspectionStatus
+    corpus_mode: bool = False
+    corpus_document_id: str | None = None
     deadline: datetime
 
 
@@ -403,6 +406,8 @@ class AuditReport(StrictModel):
     model_versions: dict[str, str] = Field(default_factory=dict)
     timestamps: dict[str, datetime] = Field(default_factory=dict)
     timings: dict[str, float] = Field(default_factory=dict)
+    generation_request: dict[str, Any] | None = None
+    generated_ad: dict[str, Any] | None = None
 
 
 class ReportSelection(StrictModel):

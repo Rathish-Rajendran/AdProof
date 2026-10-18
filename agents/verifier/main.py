@@ -19,6 +19,7 @@ from adproof.infrastructure.safe_http import SafeHttpClient
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry
 from adproof.model_client import ModelClientError, build_model_client
+from adproof.rag.index import CorpusIndex
 from adproof.transport.models import (
     SpecialistOperation,
     SpecialistResult,
@@ -43,10 +44,17 @@ def run() -> None:
     agent = make_agent(role="verifier", seed=seeds["verifier"], addresses=addresses, port=port)
     allowed_orchestrator = addresses["orchestrator"]
     root = repository_root()
-    policy = PolicyEngine.from_files(
-        root / "data/policies/catalog.json",
-        root / "data/policies/packs/google_ads_us_electronics_v1.json",
-    )
+    policy = {
+        "google_ads": PolicyEngine.from_files(
+            root / "data/policies/catalog.json",
+            root / "data/policies/packs/google_ads_us_electronics_v1.json",
+        ),
+        "meta_ads": PolicyEngine.from_files(
+            root / "data/policies/catalog.json",
+            root / "data/policies/packs/meta_ads_us_electronics_v1.json",
+        ),
+    }
+    corpus_index = CorpusIndex()
     http = SafeHttpClient()
     replies: OrderedDict[tuple[str, str, str], tuple[str, SpecialistResult]] = OrderedDict()
 
@@ -112,7 +120,12 @@ def run() -> None:
             ):
                 raise ValueError("task correlation fields disagree with verification payload")
             model = build_model_client(settings, budget)
-            dependencies = VerificationDependencies(http=http, model=model, policy=policy)
+            dependencies = VerificationDependencies(
+                http=http,
+                model=model,
+                policy=policy,
+                corpus_index=corpus_index,
+            )
             headers = task.trace_headers or {}
             transaction = sentry_sdk.continue_trace(
                 headers, op="adproof.specialist", name="verify campaign"

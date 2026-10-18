@@ -240,6 +240,7 @@ def test_help_and_welcome_are_markdown_and_include_scope():
     help_message = _help_message()
 
     assert "## AdProof commands" in help_message
+    assert help_message.count("`generate <text>`") == 1
     assert "`demo aerobeat`" in help_message
     assert "`demo aerobeat49`" in help_message
     assert "`demo aerobeat correct`" in help_message

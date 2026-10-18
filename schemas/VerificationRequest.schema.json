@@ -109,7 +109,8 @@
         "COMPLETE",
         "PARTIAL",
         "FAILED",
-        "NOT_PROVIDED"
+        "NOT_PROVIDED",
+        "NOT_APPLICABLE"
       ],
       "title": "InspectionStatus",
       "type": "string"
@@ -234,6 +235,23 @@
     },
     "context": {
       "$ref": "#/$defs/CampaignContext"
+    },
+    "corpus_document_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Corpus Document Id"
+    },
+    "corpus_mode": {
+      "default": false,
+      "title": "Corpus Mode",
+      "type": "boolean"
     },
     "creative_version": {
       "minimum": 1,

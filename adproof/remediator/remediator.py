@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -16,9 +15,9 @@ from adproof.domain.models import (
     TypedError,
     TypedErrorCode,
 )
+from adproof.infrastructure.numbers import number_tokens as _number_tokens
 from adproof.model_client import ModelClient, ModelClientError
 
-_NUMBER = re.compile(r"(?P<currency>\$)?(?P<value>\d[\d,]*(?:\.\d+)?)(?P<percent>%?)")
 PROMPT_VERSION = "copy-remediation-v1"
 
 
@@ -27,17 +26,6 @@ class _RepairOutput(BaseModel):
     repaired_copy: str = Field(max_length=4096)
     changes: list[RepairChange] = Field(default_factory=list)
     unresolved_issue_ids: list[str] = Field(default_factory=list)
-
-
-def _number_tokens(text: str) -> set[tuple[bool, Decimal, bool]]:
-    tokens = set()
-    for match in _NUMBER.finditer(text):
-        try:
-            value = Decimal(match.group("value").replace(",", ""))
-        except InvalidOperation:
-            continue
-        tokens.add((bool(match.group("currency")), value, bool(match.group("percent"))))
-    return tokens
 
 
 async def remediate_copy(

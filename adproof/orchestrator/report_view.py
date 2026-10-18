@@ -15,6 +15,10 @@ def report_summary(report: AuditReport) -> dict[str, Any]:
     """The API-style result, one entry per workflow step."""
     original = _step(report.original_audit)
     summary: dict[str, Any] = {"audit_id": report.audit_id, "original_check": original}
+    if report.generation_request is not None:
+        summary["request"] = report.generation_request
+    if report.generated_ad is not None:
+        summary["generated_ad"] = report.generated_ad
     if report.repair_proposal:
         recheck = _step(report.revised_audit)
         recheck["changed_decision"] = (
