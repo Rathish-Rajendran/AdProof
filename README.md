@@ -132,7 +132,7 @@ If `.env` already exists, leave it unchanged. Only for a new checkout without `.
 cp .env.example .env
 ```
 
-Edit `.env` privately: set `ADPROOF_RUNTIME_DIR=runtime`, `SENTRY_ENVIRONMENT=development`, and `SENTRY_TRACES_SAMPLE_RATE=0`, then add `GEMINI_API_KEY` for live Gemini calls. The example leaves these three settings blank; an empty trace sample rate causes a `ValueError`, and an empty runtime directory writes state into the repository root. `.env` is ignored by Git; never commit it.
+Edit `.env` privately and add `GEMINI_API_KEY` for live Gemini calls; the other values in the example are safe defaults. Don't leave `SENTRY_TRACES_SAMPLE_RATE` or `ADPROOF_RUNTIME_DIR` blank: an empty sample rate causes a `ValueError`, and an empty runtime directory writes state into the current directory. `.env` is ignored by Git; never commit it.
 
 | Variable | Purpose and default | Required? |
 |---|---|---|
@@ -147,9 +147,9 @@ Edit `.env` privately: set `ADPROOF_RUNTIME_DIR=runtime`, `SENTRY_ENVIRONMENT=de
 | `OLLAMA_BASE_URL` | Ollama endpoint; default `http://127.0.0.1:11434`. Compose uses its internal Ollama service address. | Only when using Ollama. |
 | `SENTRY_DSN` | Sentry telemetry destination; unset by default. | No. |
 | `SENTRY_ENVIRONMENT` | Sentry environment label; default `development` only when unset. The example is blank, so set it to `development` if sourcing `.env`. | No. |
-| `SENTRY_TRACES_SAMPLE_RATE` | Sentry trace sample rate; default `0` only when unset. The example is blank; set it to `0` before sourcing `.env`. | No. |
+| `SENTRY_TRACES_SAMPLE_RATE` | Sentry trace sample rate (`0`–`1`). The example sets `0`; must not be blank. | No. |
 | `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, `REMEDIATOR_SEED`, `GENERATOR_SEED` | Optional stable private identity seeds; blank by default, so random seeds are saved in `runtime/agent-seeds.json`. | No for local use; set or preserve them to keep deployed addresses stable. |
-| `ADPROOF_RUNTIME_DIR` | Runtime state directory; default `runtime` only when unset. The example is blank; set it to `runtime` before sourcing `.env`, or files go into the current directory. | No. |
+| `ADPROOF_RUNTIME_DIR` | Runtime state directory. The example sets `runtime`; must not be blank. | No. |
 | `ADPROOF_SOURCE_ALLOWLIST` | Optional comma-separated `host=/path` allowlist for fetched sources; unset means no custom allowlist, but public-HTTPS safety checks still apply. | No. |
 | `ADPROOF_MAILBOX_ENABLED` | Enable the orchestrator mailbox with `1`; default `0`. | Only for Agentverse/ASI:One mailbox use. |
 | `ADPROOF_ORCHESTRATOR_HANDLE` | Optional published Agentverse handle; unset by default. | No; only if you configure a public handle. |
