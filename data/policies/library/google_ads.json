@@ -1,0 +1,40 @@
+[
+  {
+    "policy_id": "GADS_MISLEADING_AD_DESIGN_AD_LANDING_INCONSISTENCY_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Misrepresentation — misleading ad design",
+    "source_url": "https://support.google.com/adspolicy/answer/6020955",
+    "section": "Misleading ad design",
+    "excerpts": [
+      "Inconsistencies between the ad and the landing page/app."
+    ],
+    "retrieved_at": "2026-10-18T08:14:31Z",
+    "content_sha256": "b6bfd5fa725437e045b19d6acb70ee03df7eb581366daa76cd651409b73a4b53",
+    "summary": "Google identifies ad-to-destination inconsistencies as a misleading-ad-design concern. Paraphrase.",
+    "topics": ["misleading representation", "destination consistency"],
+    "claim_types": ["objective"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "GADS_UNRELIABLE_CLAIMS_INACCURATE_CLAIM_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Misrepresentation — unreliable claims",
+    "source_url": "https://support.google.com/adspolicy/answer/6020955",
+    "section": "Unreliable claims",
+    "excerpts": [
+      "Making inaccurate claims or claims that entice the user with an improbable result (even if this result is possible) as the likely outcome a user can expect is not allowed."
+    ],
+    "retrieved_at": "2026-10-18T08:14:31Z",
+    "content_sha256": "b6bfd5fa725437e045b19d6acb70ee03df7eb581366daa76cd651409b73a4b53",
+    "summary": "Google prohibits inaccurate claims and certain improbable-result claims. Paraphrase.",
+    "topics": ["unreliable claims"],
+    "claim_types": ["objective", "performance"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  }
+]

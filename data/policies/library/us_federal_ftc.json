@@ -1,0 +1,40 @@
+[
+  {
+    "policy_id": "FTC_ENDORSEMENT_GUIDES_REFERENCE",
+    "issuer": "FTC",
+    "platform": "any",
+    "jurisdiction": "US",
+    "title": "16 CFR Part 255 — Guides Concerning Use of Endorsements and Testimonials in Advertising",
+    "source_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-15/title-16.xml?part=255",
+    "section": "255.0",
+    "excerpts": [
+      "Specifically, the Guides address the application of section 5 of the FTC Act, 15 U.S.C. 45, to the use of endorsements and testimonials in advertising."
+    ],
+    "retrieved_at": "2026-10-18T08:05:46Z",
+    "content_sha256": "8e2847421c49464b7d0c41d7420e5249a66e422a73ad6fd44b45b65a4cf9eb43",
+    "summary": "The Guides discuss application of FTC Act section 5 to advertising endorsements and testimonials. Paraphrase.",
+    "topics": ["endorsements", "testimonials"],
+    "claim_types": ["endorsement"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "FTC_CONSUMER_REVIEW_RULE_REFERENCE",
+    "issuer": "FTC",
+    "platform": "any",
+    "jurisdiction": "US",
+    "title": "16 CFR Part 465 — Rule on the Use of Consumer Reviews and Testimonials",
+    "source_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-15/title-16.xml?part=465",
+    "section": "465.2",
+    "excerpts": [
+      "It is an unfair or deceptive act or practice and a violation of this part for a business to write, create, or sell a consumer review, consumer testimonial, or celebrity testimonial that materially misrepresents, expressly or by implication:"
+    ],
+    "retrieved_at": "2026-10-18T08:05:46Z",
+    "content_sha256": "19b0269bc0f21f0e57c50f3fefba28ecb23c3b5926f0f29990e46a56aff2b400",
+    "summary": "This provision addresses materially misrepresented consumer reviews and testimonials. Paraphrase.",
+    "topics": ["consumer reviews", "testimonials"],
+    "claim_types": ["endorsement"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  }
+]

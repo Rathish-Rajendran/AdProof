@@ -1,0 +1,19 @@
+[
+  {
+    "policy_id": "META_PROHIBITED_COMMERCIAL_PRACTICES_REFERENCE",
+    "issuer": "Meta",
+    "platform": "meta_ads",
+    "jurisdiction": "US",
+    "title": "Meta Advertising Standards — Prohibited Commercial Practices",
+    "source_url": "https://transparency.meta.com/policies/ad-standards/deceptive-content/prohibited-commercial-practices/",
+    "section": "Prohibited Commercial Practices",
+    "excerpts": [],
+    "retrieved_at": "2026-10-18T08:05:46Z",
+    "content_sha256": "b4835746e9ee6401cb500ae85d43e1e9ab4c596168b7f18b35b6395d4f2fbfe9",
+    "summary": "The official page rendered policy text in the web fetch tool, but the local normalized fetch returned only the page title; no excerpt is retained or enforced.",
+    "topics": ["deceptive practices", "pricing", "endorsements"],
+    "claim_types": [],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  }
+]

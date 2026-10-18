@@ -1,0 +1,21 @@
+[
+  {
+    "policy_id": "ASA_CAP_3_1_REFERENCE",
+    "issuer": "ASA/CAP",
+    "platform": "any",
+    "jurisdiction": "UK",
+    "title": "CAP Code rule 3.1 — Misleading advertising",
+    "source_url": "https://www.asa.org.uk/type/capcode/code_rule/3.1.html",
+    "section": "CAP 3.1",
+    "excerpts": [
+      "CAP 3.1 Marketing communications must not materially mislead or be likely to do so."
+    ],
+    "retrieved_at": "2026-10-18T08:05:46Z",
+    "content_sha256": "833492a0f9fa30fcd47672de0a2145f47ecdddee6beedf6979cea0962660b04a",
+    "summary": "CAP Code rule 3.1 prohibits materially misleading marketing communications. Paraphrase.",
+    "topics": ["misleading advertising"],
+    "claim_types": ["objective"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  }
+]
