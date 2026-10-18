@@ -220,6 +220,126 @@ async def test_contradicted_landing_page_assessment_establishes_active_rule():
 
 
 @pytest.mark.asyncio
+async def test_case_one_claim_findings_are_deduplicated_and_policy_referenced():
+    model = FakeModelClient(
+        [
+            _ClaimExtraction(
+                claims=[
+                    _ExtractedClaim(
+                        claim="AeroBeat headphones are completely waterproof.",
+                        source="ad_text",
+                        claim_type=ClaimType.PERFORMANCE,
+                    ),
+                    _ExtractedClaim(
+                        claim="Get 48-hour battery life with noise cancellation off.",
+                        source="ad_text",
+                        claim_type=ClaimType.QUANTITATIVE_SPECIFICATION,
+                    ),
+                    _ExtractedClaim(
+                        claim="Recommended by 1,000 athletes.",
+                        source="ad_text",
+                        claim_type=ClaimType.ENDORSEMENT,
+                    ),
+                    _ExtractedClaim(
+                        claim="50% off",
+                        source="ad_text",
+                        claim_type=ClaimType.DISCOUNT,
+                    ),
+                    _ExtractedClaim(
+                        claim="Now $60",
+                        source="ad_text",
+                        claim_type=ClaimType.PRICE,
+                    ),
+                ]
+            ),
+            _AssessmentOutput(
+                assessments=[
+                    _Assessment(
+                        claim_id="claim-1",
+                        status="CONTRADICTED",
+                        source_index=0,
+                        quote="Not waterproof.",
+                        explanation="The product page says the headphones are not waterproof.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-2",
+                        status="CONTRADICTED",
+                        source_index=0,
+                        quote="Up to 30 hours of battery life with noise cancellation off.",
+                        explanation="The page supports up to 30, not 48, hours.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-3",
+                        status="INSUFFICIENT_EVIDENCE",
+                        explanation="The page does not mention an athlete endorsement.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-4",
+                        status="CONTRADICTED",
+                        source_index=0,
+                        quote="Regular price $80. Current price $60.",
+                        explanation="The page prices compute to 25% off, not 50%.",
+                    ),
+                    _Assessment(
+                        claim_id="claim-5",
+                        status="SUPPORTED",
+                        source_index=0,
+                        quote="Current price $60.",
+                        explanation="The current price is $60.",
+                    ),
+                ]
+            ),
+        ]
+    )
+    page = (
+        b"<p>Not waterproof. Up to 30 hours of battery life with noise cancellation off. "
+        b"Regular price $80. Current price $60.</p>"
+    )
+    result = await verify_campaign(
+        request(
+            "AeroBeat headphones are completely waterproof. Get 48-hour battery life with "
+            "noise cancellation off. Recommended by 1,000 athletes. Now $60—50% off!"
+        ),
+        VerificationDependencies(
+            http=StaticHttp(page),
+            model=model,
+            policy=policy(),
+            now=lambda: datetime(2026, 10, 18, tzinfo=UTC),
+        ),  # type: ignore[arg-type]
+    )
+
+    assert [claim.status for claim in result.claims] == [
+        ClaimStatus.CONTRADICTED,
+        ClaimStatus.CONTRADICTED,
+        ClaimStatus.INSUFFICIENT_EVIDENCE,
+        ClaimStatus.CONTRADICTED,
+        ClaimStatus.SUPPORTED,
+    ]
+    assert result.decision.value == "FIX_REQUIRED"
+    assert len(result.issues) == 4
+    issues_by_claim = {issue.claim_id: issue for issue in result.issues}
+    assert set(issues_by_claim) == {"claim-1", "claim-2", "claim-3", "claim-4"}
+    assert {claim_id: issue.category for claim_id, issue in issues_by_claim.items()} == {
+        "claim-1": IssueCategory.AD_LANDING_PAGE_CONTRADICTION,
+        "claim-2": IssueCategory.AD_LANDING_PAGE_CONTRADICTION,
+        "claim-3": IssueCategory.UNVERIFIED_ENDORSEMENT,
+        "claim-4": IssueCategory.PRICE_DISCOUNT_MISMATCH,
+    }
+    assert all(
+        issues_by_claim[claim_id].policy_reference for claim_id in ("claim-1", "claim-2", "claim-4")
+    )
+    assert {check.rule_id for check in result.policy_checks if check.predicate_established} == {
+        "GADS_MISLEADING_AD_DESIGN_AD_LANDING_INCONSISTENCY",
+        "GADS_UNRELIABLE_CLAIMS_INACCURATE_CLAIM",
+    }
+    assert all(
+        check.finding == "Predicate established."
+        for check in result.policy_checks
+        if check.predicate_established
+    )
+
+
+@pytest.mark.asyncio
 async def test_unsupported_assessment_has_unestablished_landing_consistency():
     model = FakeModelClient(
         [

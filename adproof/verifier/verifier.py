@@ -322,8 +322,7 @@ async def verify_campaign(
             valid_evidence_ids=valid_evidence_ids,
             now=dependencies.now(),
         )
-    known_issue_ids = {issue.id for issue in issues}
-    issues.extend(issue for issue in policy_issues if issue.id not in known_issue_ids)
+    _merge_policy_issues(issues, policy_issues)
     coverage = Coverage(
         ad_text=CoverageItem(status=CoverageStatus.CHECKED),
         landing_page=CoverageItem(
@@ -684,14 +683,21 @@ def _apply_claim_issues(claims: list[Claim], issues: list[Issue]) -> None:
             continue
         if claim.status == ClaimStatus.SUPPORTED:
             continue
-        if claim.claim_type == ClaimType.ENDORSEMENT:
+        if claim.status == ClaimStatus.INSUFFICIENT_EVIDENCE:
+            category = (
+                IssueCategory.UNVERIFIED_ENDORSEMENT
+                if claim.claim_type == ClaimType.ENDORSEMENT
+                else IssueCategory.UNSUPPORTED_OBJECTIVE_CLAIM
+            )
+            action = IssueAction.REVIEW if claim.claim_type == ClaimType.HEALTH else IssueAction.FIX
+        elif claim.claim_type == ClaimType.ENDORSEMENT:
             category = IssueCategory.UNVERIFIED_ENDORSEMENT
             action = IssueAction.FIX
-        elif claim.status == ClaimStatus.INSUFFICIENT_EVIDENCE:
-            category = IssueCategory.UNSUPPORTED_OBJECTIVE_CLAIM
-            action = IssueAction.REVIEW if claim.claim_type == ClaimType.HEALTH else IssueAction.FIX
+        elif claim.claim_type in (ClaimType.PRICE, ClaimType.DISCOUNT):
+            category = IssueCategory.PRICE_DISCOUNT_MISMATCH
+            action = IssueAction.FIX
         else:
-            category = IssueCategory.UNSUPPORTED_OBJECTIVE_CLAIM
+            category = IssueCategory.AD_LANDING_PAGE_CONTRADICTION
             action = IssueAction.FIX
         issues.append(
             Issue(
@@ -704,3 +710,39 @@ def _apply_claim_issues(claims: list[Claim], issues: list[Issue]) -> None:
                 action=action,
             )
         )
+        existing_claim_ids.add(claim.id)
+
+
+def _merge_policy_issues(issues: list[Issue], policy_issues: list[Issue]) -> None:
+    issue_indexes: dict[str, int] = {}
+    unique_issues: list[Issue] = []
+    for issue in issues:
+        if issue.claim_id is None:
+            unique_issues.append(issue)
+            continue
+        existing_index = issue_indexes.get(issue.claim_id)
+        if existing_index is None:
+            issue_indexes[issue.claim_id] = len(unique_issues)
+            unique_issues.append(issue)
+            continue
+        existing = unique_issues[existing_index]
+        if existing.policy_reference is None and issue.policy_reference is not None:
+            unique_issues[existing_index] = existing.model_copy(
+                update={"policy_reference": issue.policy_reference}
+            )
+
+    issues[:] = unique_issues
+    for policy_issue in policy_issues:
+        if policy_issue.claim_id is None:
+            issues.append(policy_issue)
+            continue
+        existing_index = issue_indexes.get(policy_issue.claim_id)
+        if existing_index is None:
+            issue_indexes[policy_issue.claim_id] = len(issues)
+            issues.append(policy_issue)
+            continue
+        existing = issues[existing_index]
+        if existing.policy_reference is None and policy_issue.policy_reference is not None:
+            issues[existing_index] = existing.model_copy(
+                update={"policy_reference": policy_issue.policy_reference}
+            )
