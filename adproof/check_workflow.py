@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -30,6 +31,20 @@ from adproof.workflow_cycle import verify_with_one_repair
 
 class CheckWorkflowError(RuntimeError):
     pass
+
+
+_LEADING_MENTIONS = re.compile(r"^(?:\s*@[\w.\-]+[,:]?)+\s*")
+_CHECK_COMMAND = re.compile(r"^check\b[\s,:-]*", re.IGNORECASE)
+
+
+def _image_request_hints(text: str) -> str:
+    without_mentions = _LEADING_MENTIONS.sub("", text.strip(), count=1).strip()
+    return _CHECK_COMMAND.sub("", without_mentions, count=1).strip()
+
+
+def _check_request(ad_text: str, effective_text: str, *, image: bool):
+    request_text = _image_request_hints(ad_text) if image else effective_text
+    return parse_generation_request(request_text[:2048])
 
 
 async def run_check_workflow(
@@ -70,7 +85,7 @@ async def run_check_workflow(
         for item in (inspection.observations if inspection else [])
         if item.kind == ObservationKind.VISIBLE_TEXT and item.text.strip()
     )
-    effective_text = ad_text.strip() or detected_text
+    effective_text = detected_text if image is not None else ad_text.strip()
     if len(effective_text) > 4096:
         raise CheckWorkflowError("Ad text exceeds the 4096 character limit.")
 
@@ -78,7 +93,7 @@ async def run_check_workflow(
         raise CheckWorkflowError("Usage: check <ad text>.")
     if not effective_text:
         raise CheckWorkflowError("Couldn't match this ad to a product in the company data.")
-    request = parse_generation_request(effective_text[:2048])
+    request = _check_request(ad_text, effective_text, image=image is not None)
     index.ensure_built()
     chunks = index.retrieve(effective_text, top_k=6)
     landing_page = _document_for_request(index, chunks)

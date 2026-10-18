@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from adproof.check_workflow import CheckWorkflowError, run_check_workflow
+from adproof.check_workflow import CheckWorkflowError, _check_request, run_check_workflow
 from adproof.domain.models import (
     CampaignContext,
     ClaimSource,
@@ -845,6 +845,66 @@ async def test_image_check_can_fix_text_and_invalid_images_return_safe_json():
     )
     assert failure["needs_review"] is True
     assert failure["ad"] is None
+
+
+@pytest.mark.asyncio
+async def test_image_caption_is_only_a_hint_and_ocr_supplies_claims():
+    caption = "check complacency"
+    ocr_text = "AeroBeat AB-01 is completely waterproof."
+    image = (ROOT / "data/fixtures/public/aerobeat-only49.png").read_bytes()
+    model = CapturingFakeModelClient(
+        [
+            _ClaimExtraction(claims=[_text_claim("completely waterproof")]),
+            _AssessmentOutput(
+                assessments=[_assessment(ClaimStatus.CONTRADICTED, "not waterproof")]
+            ),
+            _RepairOutput(
+                repaired_copy="AeroBeat AB-01 is splash-resistant for everyday use.",
+                changes=[],
+                unresolved_issue_ids=[],
+            ),
+            _ClaimExtraction(claims=[_text_claim("splash-resistant for everyday use")]),
+            _AssessmentOutput(
+                assessments=[
+                    _assessment(
+                        ClaimStatus.SUPPORTED,
+                        "splash-resistant for everyday use",
+                    )
+                ]
+            ),
+        ]
+    )
+    report = await run_check_workflow(
+        caption,
+        index=FakeCorpusIndex(),
+        model=model,
+        settings=Settings(),
+        policies={"google_ads": _policy(), "meta_ads": _policy()},
+        image=image,
+        image_inspector=FakeImageInspector(ocr_text),
+        offline=True,
+    )
+
+    rendered = report_summary(report)
+    assert report.original_candidate.ad_copy == ocr_text
+    assert report.original_audit.claims[0].claim == "completely waterproof"
+    extraction_prompt = "\n".join(model.prompts[0][1])
+    assert f"AD COPY:\n{ocr_text}" in extraction_prompt
+    assert caption not in extraction_prompt
+    assert rendered["ad"]["fixed_text"] == "AeroBeat AB-01 is splash-resistant for everyday use."
+    assert rendered["ad"]["fixed_text"] != caption
+    _validate_check_payloads(report)
+
+
+def test_image_caption_can_select_meta_platform_without_replacing_ocr():
+    request = _check_request(
+        "@adproof-orchestrator check for Meta",
+        "AeroBeat AB-01 is splash-resistant for everyday use.",
+        image=True,
+    )
+
+    assert request.platform == "meta_ads"
+    assert request.prompt == "for Meta"
 
 
 def test_corpus_claim_extraction_prompt_uses_only_ad_text():

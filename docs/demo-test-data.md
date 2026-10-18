@@ -1,6 +1,7 @@
 # Demo test data
 
 Upload [the non-compliant demo image](images/demo-noncompliant-ad.png), copied from `/home/ubuntu/plans/adproof_test_ad.png`.
+Image text always comes from OCR; an optional caption supplies request hints only (for example, `for Meta`).
 
 Send these exact inputs to the orchestrator in ASI:One:
 
