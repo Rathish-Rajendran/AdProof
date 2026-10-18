@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "title": "After",
+      "type": "string"
+    },
+    "before": {
+      "title": "Before",
+      "type": "string"
+    },
+    "issue_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Issue Ids",
+      "type": "array"
+    },
+    "rationale": {
+      "title": "Rationale",
+      "type": "string"
+    }
+  },
+  "required": [
+    "issue_ids",
+    "before",
+    "after",
+    "rationale"
+  ],
+  "title": "RepairChange",
+  "type": "object"
+}

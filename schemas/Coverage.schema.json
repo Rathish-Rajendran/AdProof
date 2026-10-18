@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "CoverageItem": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "status": {
+          "$ref": "#/$defs/CoverageStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "CoverageItem",
+      "type": "object"
+    },
+    "CoverageStatus": {
+      "enum": [
+        "CHECKED",
+        "PARTIAL",
+        "NOT_CHECKED",
+        "FAILED",
+        "NOT_APPLICABLE"
+      ],
+      "title": "CoverageStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "ad_text": {
+      "$ref": "#/$defs/CoverageItem"
+    },
+    "image": {
+      "$ref": "#/$defs/CoverageItem"
+    },
+    "landing_page": {
+      "$ref": "#/$defs/CoverageItem"
+    },
+    "platform_policy": {
+      "$ref": "#/$defs/CoverageItem"
+    },
+    "supporting_documents": {
+      "$ref": "#/$defs/CoverageItem"
+    }
+  },
+  "required": [
+    "ad_text",
+    "landing_page",
+    "supporting_documents",
+    "image",
+    "platform_policy"
+  ],
+  "title": "Coverage",
+  "type": "object"
+}

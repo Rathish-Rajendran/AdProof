@@ -1,0 +1,400 @@
+{
+  "catalog_id": "adproof_policy_catalog",
+  "version": "2026-10-18.1",
+  "generated_at": "2026-10-18T00:09:36Z",
+  "notes": "Small reviewed catalog. Candidate retrieval is not applicability; applicability is not violation. ENGINEERING review means the mechanical predicate was implemented and tested by Devin; it is not human or legal review. FIX/REVIEW actions are repair recommendations, not legal findings.",
+  "rules": [
+    {
+      "rule_id": "GADS_MISLEADING_AD_DESIGN_AD_LANDING_INCONSISTENCY",
+      "title": "Google Ads Misrepresentation — Misleading ad design: inconsistencies between the ad and the landing page",
+      "source_url": "https://support.google.com/adspolicy/answer/6020955",
+      "section": "Misleading ad design",
+      "excerpt": "Inconsistencies between the ad and the landing page/app.",
+      "retrieved_at": "2026-10-18T00:09:36Z",
+      "content_sha256": "76f787e168ccb33f27750609a1e1cab9ca0f59fd53460ae6a6a4710e5b9eba3c",
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "price",
+          "discount",
+          "quantitative_specification",
+          "performance",
+          "guarantee",
+          "other_objective"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [
+        "claim.landing_page_consistency",
+        "validated evidence quote from the supplied landing page snapshot"
+      ],
+      "violation_predicate": {
+        "kind": "claim_landing_page_consistency",
+        "equals": "MISMATCH",
+        "requires_valid_evidence": true
+      },
+      "issue_category": "AD_LANDING_PAGE_CONTRADICTION",
+      "issue_category_overrides": {
+        "price": "PRICE_DISCOUNT_MISMATCH",
+        "discount": "PRICE_DISCOUNT_MISMATCH"
+      },
+      "default_action": "FIX",
+      "enforcement": "FIX",
+      "review_status": "ACTIVE",
+      "review": {
+        "kind": "ENGINEERING",
+        "reviewer": "Devin (AI engineering agent)",
+        "role": "automated engineering review — NOT human or legal review",
+        "reviewed_at": "2026-10-18T00:09:36Z"
+      },
+      "implementation_notes": "Mechanical: an objective ad/image claim whose supplied landing-page evidence (validated quote and/or deterministic arithmetic) establishes a mismatch. Does not judge ad design generally (buttons, notifications, ad labeling are NOT implemented)."
+    },
+    {
+      "rule_id": "GADS_UNRELIABLE_CLAIMS_INACCURATE_CLAIM",
+      "title": "Google Ads Misrepresentation — Unreliable claims: inaccurate claims",
+      "source_url": "https://support.google.com/adspolicy/answer/15936857",
+      "section": "Unreliable claims (general prohibition)",
+      "excerpt": "Making inaccurate claims or claims that entice the user with an improbable result (even if this result is possible) as the likely outcome a user can expect is not allowed.",
+      "retrieved_at": "2026-10-18T00:09:36Z",
+      "content_sha256": "2662552bc6e465ac07798da16cdd254c3bd4face6ed357d9ad0ea0b344e7be22",
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "price",
+          "discount",
+          "quantitative_specification",
+          "performance",
+          "comparison",
+          "guarantee",
+          "environmental",
+          "other_objective"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [
+        "claim.status",
+        "validated evidence quote from a supplied seller/substantiation source"
+      ],
+      "violation_predicate": {
+        "kind": "claim_status",
+        "equals": "CONTRADICTED",
+        "requires_valid_evidence": true
+      },
+      "issue_category": "UNSUPPORTED_OBJECTIVE_CLAIM",
+      "issue_category_overrides": {
+        "price": "PRICE_DISCOUNT_MISMATCH",
+        "discount": "PRICE_DISCOUNT_MISMATCH"
+      },
+      "default_action": "FIX",
+      "enforcement": "FIX",
+      "review_status": "ACTIVE",
+      "review": {
+        "kind": "ENGINEERING",
+        "reviewer": "Devin (AI engineering agent)",
+        "role": "automated engineering review — NOT human or legal review",
+        "reviewed_at": "2026-10-18T00:09:36Z"
+      },
+      "implementation_notes": "Mechanical subset only: an objective claim directly CONTRADICTED by the supplied seller evidence is treated as inaccurate. 'Improbable result' judgments, and INSUFFICIENT_EVIDENCE claims, are NOT treated as violations of this rule (insufficient evidence is reported as an evidence finding, not a policy violation)."
+    },
+    {
+      "rule_id": "GADS_DISHONEST_PRICING_MISLEADING_IMPRESSION",
+      "title": "Google Ads — Dishonest pricing practices: false or misleading impression of cost",
+      "source_url": "https://support.google.com/adspolicy/answer/15938375",
+      "section": "Dishonest pricing practices (second prohibition)",
+      "excerpt": "Employing pricing practices that create a false or misleading impression of the cost of a product or service, leading to inflated or unexpected charges is not allowed.",
+      "retrieved_at": "2026-10-18T00:09:36Z",
+      "content_sha256": "14d67b6746fde4c01c0eecf4facf2de5d5679fb350e016f4de6ea2ab2f52bed4",
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "price",
+          "discount"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [
+        "evidence of inflated or unexpected charges"
+      ],
+      "violation_predicate": null,
+      "issue_category": "PRICE_DISCOUNT_MISMATCH",
+      "default_action": "REVIEW",
+      "enforcement": "REVIEW",
+      "review_status": "DRAFT",
+      "review": {
+        "kind": null,
+        "reviewer": null,
+        "role": null,
+        "reviewed_at": null
+      },
+      "implementation_notes": "DRAFT pending human review: whether an overstated discount alone creates 'inflated or unexpected charges' is an interpretation. Not required by the v1 pack; price mismatches are covered by the ad/landing-page inconsistency rule."
+    },
+    {
+      "rule_id": "GADS_DISHONEST_PRICING_PAYMENT_MODEL_DISCLOSURE",
+      "title": "Google Ads — Dishonest pricing practices: disclose payment model and full expense",
+      "source_url": "https://support.google.com/adspolicy/answer/15938375",
+      "section": "Dishonest pricing practices (first prohibition)",
+      "excerpt": "Failure to clearly and conspicuously disclose the payment model or full expense that a user will bear before and after purchase is not allowed.",
+      "retrieved_at": "2026-10-18T00:09:36Z",
+      "content_sha256": "14d67b6746fde4c01c0eecf4facf2de5d5679fb350e016f4de6ea2ab2f52bed4",
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "price"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [
+        "total price incl. taxes/fees/shipping",
+        "payment model",
+        "recurring billing terms"
+      ],
+      "violation_predicate": null,
+      "issue_category": "MISSING_REQUIRED_DISCLOSURE",
+      "default_action": "REVIEW",
+      "enforcement": "REVIEW",
+      "review_status": "DRAFT",
+      "review": {
+        "kind": null,
+        "reviewer": null,
+        "role": null,
+        "reviewed_at": null
+      },
+      "implementation_notes": "DRAFT / NOT IMPLEMENTED: requires taxes, fees, shipping and billing facts AdProof does not extract. Listed as an explicitly excluded check in the v1 pack."
+    },
+    {
+      "rule_id": "GADS_UNRELIABLE_CLAIMS_TESTIMONIAL_DISCLAIMER",
+      "title": "Google Ads — Unreliable claims: testimonials claiming specific results",
+      "source_url": "https://support.google.com/adspolicy/answer/15936857",
+      "section": "Unreliable claims — Claims related to health and weight loss (testimonials)",
+      "excerpt": "Testimonials that claim specific results must include a visible disclaimer stating that there is no guarantee of specific results and that the results can vary.",
+      "retrieved_at": "2026-10-18T00:09:36Z",
+      "content_sha256": "2662552bc6e465ac07798da16cdd254c3bd4face6ed357d9ad0ea0b344e7be22",
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "endorsement"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [
+        "testimonial claims a specific result"
+      ],
+      "violation_predicate": null,
+      "issue_category": "MISSING_REQUIRED_DISCLOSURE",
+      "default_action": "REVIEW",
+      "enforcement": "REVIEW",
+      "review_status": "DRAFT",
+      "review": {
+        "kind": null,
+        "reviewer": null,
+        "role": null,
+        "reviewed_at": null
+      },
+      "implementation_notes": "DRAFT: appears under the health/weight-loss subsection; applicability to electronics endorsements is ambiguous and needs human review. Not required by v1."
+    },
+    {
+      "rule_id": "GADS_UNRELIABLE_CLAIMS_HEALTH_CURES",
+      "title": "Google Ads — Unreliable claims: unproven health cures",
+      "source_url": "https://support.google.com/adspolicy/answer/15936857",
+      "section": "Unreliable claims — Claims related to health and weight loss",
+      "excerpt": "Making unproven claims of cures for incurable medical ailments",
+      "retrieved_at": "2026-10-18T00:09:36Z",
+      "content_sha256": "2662552bc6e465ac07798da16cdd254c3bd4face6ed357d9ad0ea0b344e7be22",
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "health"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [],
+      "violation_predicate": null,
+      "issue_category": "UNSUPPORTED_OBJECTIVE_CLAIM",
+      "default_action": "REVIEW",
+      "enforcement": "REVIEW",
+      "review_status": "DISABLED",
+      "review": {
+        "kind": null,
+        "reviewer": null,
+        "role": null,
+        "reviewed_at": null
+      },
+      "implementation_notes": "DISABLED: health category is out of the v1 launch scope. Any health claim is routed to HUMAN_REVIEW as unsupported scope rather than evaluated against this rule."
+    },
+    {
+      "rule_id": "FTC_AD_SUBSTANTIATION_POLICY_STATEMENT",
+      "title": "FTC Policy Statement Regarding Advertising Substantiation",
+      "source_url": "https://www.ftc.gov/legal-library/browse/ftc-policy-statement-regarding-advertising-substantiation",
+      "section": null,
+      "excerpt": null,
+      "retrieved_at": null,
+      "content_sha256": null,
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "quantitative_specification",
+          "performance",
+          "comparison",
+          "guarantee",
+          "environmental",
+          "other_objective"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [],
+      "violation_predicate": null,
+      "issue_category": "UNSUPPORTED_OBJECTIVE_CLAIM",
+      "default_action": "REVIEW",
+      "enforcement": "REVIEW",
+      "review_status": "DRAFT",
+      "review": {
+        "kind": null,
+        "reviewer": null,
+        "role": null,
+        "reviewed_at": null
+      },
+      "implementation_notes": "DRAFT / SOURCE NOT RETRIEVED: www.ftc.gov returned HTTP 404 to the build VM's automated fetch (bot blocking suspected). No excerpt is recorded; a human must retrieve and review the exact section before any activation."
+    },
+    {
+      "rule_id": "FTC_ENDORSEMENT_GUIDES_RESOURCES",
+      "title": "FTC Endorsements, Influencers, and Reviews",
+      "source_url": "https://www.ftc.gov/business-guidance/advertising-marketing/endorsements-influencers-reviews",
+      "section": null,
+      "excerpt": null,
+      "retrieved_at": null,
+      "content_sha256": null,
+      "applicability": {
+        "platforms": [
+          "google_ads"
+        ],
+        "jurisdictions": [
+          "US"
+        ],
+        "languages": [
+          "en"
+        ],
+        "categories": [
+          "electronics"
+        ],
+        "claim_types": [
+          "endorsement"
+        ],
+        "sources": [
+          "ad_text",
+          "image"
+        ]
+      },
+      "required_facts": [],
+      "violation_predicate": null,
+      "issue_category": "UNVERIFIED_ENDORSEMENT",
+      "default_action": "REVIEW",
+      "enforcement": "REVIEW",
+      "review_status": "DRAFT",
+      "review": {
+        "kind": null,
+        "reviewer": null,
+        "role": null,
+        "reviewed_at": null
+      },
+      "implementation_notes": "DRAFT / SOURCE NOT RETRIEVED: index/resource page; returned HTTP 404 to automated fetch. Not a mandatory rule. Endorsement substantiation is performed as an evidence check (INSUFFICIENT_EVIDENCE), not as an FTC finding."
+    }
+  ]
+}

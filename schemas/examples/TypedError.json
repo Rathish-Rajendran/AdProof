@@ -1,0 +1,7 @@
+{
+  "code": "MODEL_UNAVAILABLE",
+  "details": {},
+  "message": "The configured model service is temporarily unavailable.",
+  "retryable": true,
+  "source": null
+}

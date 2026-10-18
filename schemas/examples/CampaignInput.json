@@ -1,0 +1,26 @@
+{
+  "campaign_id": "aerobeat-demo",
+  "context": {
+    "audience": "adults",
+    "jurisdiction": "US",
+    "language": "en",
+    "platform": "google_ads",
+    "product_category": "electronics"
+  },
+  "creative": {
+    "ad_copy": "AeroBeat AB-01 headphones are splash-resistant, with up to 30 hours of battery life when noise cancellation is off.",
+    "image_url": "mock://fixtures/aerobeat-neutral.png"
+  },
+  "creative_version": 1,
+  "evidence_documents": [],
+  "landing_page_url": "mock://fixtures/aerobeat.html",
+  "product_context": {
+    "currency": "USD",
+    "model": "AB-01",
+    "quantity": 1,
+    "variant": "standard"
+  },
+  "repair_mode": "repair_once",
+  "request_id": "schema-example-1",
+  "schema_version": "1.0"
+}

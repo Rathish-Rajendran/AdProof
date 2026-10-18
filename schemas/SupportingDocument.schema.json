@@ -1,0 +1,35 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "document_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Document Id",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "source_type": {
+      "title": "Source Type",
+      "type": "string"
+    },
+    "url": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "document_id",
+    "name",
+    "url",
+    "source_type"
+  ],
+  "title": "SupportingDocument",
+  "type": "object"
+}

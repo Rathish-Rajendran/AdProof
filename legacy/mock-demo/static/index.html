@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#161c2d">
+  <title>AdProof · Agent control room</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar" aria-label="Application navigation">
+    <a class="brand" href="/" aria-label="AdProof home"><span class="brand-mark">a<span>✓</span></span><span>AdProof<span class="brand-caption">Campaign assurance</span></span></a>
+    <div class="workspace-label">WORKSPACE</div>
+    <a class="nav-item active" href="#control-room"><span class="nav-icon">◫</span> Control room <span class="nav-dot"></span></a>
+    <a class="nav-item" href="#message-inspector"><span class="nav-icon">⇄</span> Message inspector</a>
+    <div class="sidebar-note"><div class="note-icon">⌘</div><strong>Your orchestration sandbox</strong><p>Explore the Person 1 workflow, agent handoffs, and recovery paths.</p><span class="sidebar-tag">LOCAL DEMO · NO API KEYS</span></div>
+    <div class="sidebar-footer"><span class="avatar">P1</span><div>Infrastructure & orchestration<span>Person 1 workspace</span></div></div>
+  </aside>
+  <main id="control-room">
+    <header class="topbar"><span class="breadcrumb">Workspace <span>/</span> <strong>Control room</strong></span><div class="connection"><span id="health-dot" class="status-dot"></span><span id="health-label">Connecting to local server</span><span class="version">v0.1</span></div></header>
+    <div class="page-content">
+      <div class="page-heading"><div><div class="eyebrow">AGENT INFRASTRUCTURE & ORCHESTRATION</div><h1>Every handoff. Every decision.</h1><p>A local control room for your campaign safety workflow.</p></div><span class="demo-badge"><span></span> MOCK EXECUTION</span></div>
+      <div class="mock-notice"><span class="notice-symbol">i</span><p><strong>Built to explore, safe to experiment.</strong> Agents, evidence, and decisions are deterministic fixtures. This demo does not call Gemini, Fetch.ai, Sentry, or Devin.</p><span class="notice-tag">NO CREDENTIALS NEEDED</span></div>
+      <section class="scenario-bar" aria-label="Demo scenario"><div><label for="scenario-select">Choose a test scenario</label><p id="scenario-description">Loading demo fixtures…</p></div><select id="scenario-select" aria-describedby="scenario-description"><option>Loading scenarios…</option></select><span id="scenario-expected" class="expected-pill">—</span></section>
+      <div id="error-banner" class="error-banner" role="alert" hidden></div>
+      <div class="workspace-grid">
+        <section class="panel campaign-panel" aria-labelledby="campaign-heading">
+          <div class="panel-heading"><div class="section-title"><span class="section-number">01</span><h2 id="campaign-heading">Campaign input</h2></div><span class="subtle-tag">EDITABLE</span></div>
+          <form id="audit-form">
+            <div class="creative-frame"><img id="creative-preview" src="/static/creatives/neutral.svg" alt="Selected mock advertisement creative"><span class="creative-label">MOCK CREATIVE</span></div>
+            <div class="form-body">
+              <label for="ad-copy">Ad copy</label><textarea id="ad-copy" rows="4" required placeholder="Your campaign copy…"></textarea>
+              <label for="landing-url">Landing page</label><div class="input-with-icon"><span aria-hidden="true">↗</span><input id="landing-url" type="text" required spellcheck="false"></div>
+              <div class="form-row"><div><label for="platform">Platform</label><select id="platform"><option value="GOOGLE_ADS">Google Ads</option><option value="META_ADS" disabled>Meta Ads (not in demo)</option></select></div><div><label for="jurisdiction">Jurisdiction</label><select id="jurisdiction"><option value="US">United States</option><option value="UK" disabled>UK (not in demo)</option><option value="EU" disabled>EU (not in demo)</option></select></div></div>
+              <div class="fixture-info"><span>▤</span><div>Evidence from local fixtures<span>No external page is fetched in mock mode.</span></div></div>
+              <button id="run-button" class="primary-button" type="submit"><span id="run-icon">▶</span><span id="run-label">Run campaign audit</span><span class="button-arrow">↗</span></button>
+              <p class="form-hint">Watch the agents coordinate in real time.</p>
+            </div>
+          </form>
+        </section>
+        <section class="panel workflow-panel" aria-labelledby="workflow-heading">
+          <div class="panel-heading"><div class="section-title"><span class="section-number">02</span><h2 id="workflow-heading">Agent workflow</h2></div><span id="workflow-status" class="status-pill idle">Ready to run</span></div>
+          <div class="workflow-metrics"><div><span class="metric-label">AUDIT ID</span><strong id="audit-id" title="No audit started">Awaiting run</strong></div><div><span class="metric-label">MESSAGES</span><strong id="message-count">0</strong></div><div><span class="metric-label">ELAPSED</span><strong id="elapsed">0.0<span>s</span></strong></div></div>
+          <div class="agent-strip" aria-label="Agent status"><div class="agent-item" data-agent="orchestrator"><span class="agent-symbol">⌘</span><strong>Orchestrator</strong><span class="agent-state">Ready</span></div><span class="agent-connector">→</span><div class="agent-item" data-agent="inspector"><span class="agent-symbol">◉</span><strong>Inspector</strong><span class="agent-state">Ready</span></div><span class="agent-connector">→</span><div class="agent-item" data-agent="verifier"><span class="agent-symbol">✓</span><strong>Verifier</strong><span class="agent-state">Ready</span></div><span class="agent-connector">→</span><div class="agent-item" data-agent="remediator"><span class="agent-symbol">✦</span><strong>Remediator</strong><span class="agent-state">Ready</span></div></div>
+          <div class="activity-heading"><h3>Execution timeline</h3><span id="activity-count">0 events</span></div>
+          <div id="timeline" class="timeline" role="log" aria-live="polite" aria-relevant="additions"><div class="timeline-empty"><div class="empty-orbit"><span>⌘</span></div><h3>Your agents are standing by</h3><p>Choose a scenario and run an audit to inspect each stage, message, and decision.</p><div class="empty-flow"><span>Inspect</span><i>→</i><span>Verify</span><i>→</i><span>Repair</span><i>→</i><span>Re-audit</span></div></div></div>
+          <div class="workflow-footer"><span class="status-dot muted"></span><span id="workflow-footer-label">All activity stays on your machine.</span><button id="replay-button" class="text-button" type="button" disabled title="Repeat the exact request to check idempotency">Replay request ↻</button></div>
+        </section>
+        <section class="panel report-panel" aria-labelledby="report-heading">
+          <div class="panel-heading"><div class="section-title"><span class="section-number">03</span><h2 id="report-heading">Audit outcome</h2></div><span class="subtle-tag">MOCK</span></div>
+          <div id="result-empty" class="result-empty"><span class="result-empty-icon">▣</span><h3>A decision you can inspect</h3><p>Claims, evidence, and any proposed repair will appear here.</p></div>
+          <div id="result-content" hidden>
+            <div class="decision-summary"><span class="metric-label">ORIGINAL CREATIVE</span><div id="initial-decision" class="decision-badge">—</div><div class="decision-route"><span>↓</span><p id="decision-route-label">Independent re-verification</p></div><span class="metric-label">FINAL CANDIDATE</span><div id="final-decision" class="decision-badge">—</div><p id="final-description" class="final-description"></p></div>
+            <p id="findings-context" class="findings-context">Original candidate findings</p>
+            <div class="result-tabs" role="tablist" aria-label="Original candidate findings"><button type="button" class="active" role="tab" aria-selected="true" data-result-tab="issues">Issues <span id="issue-count">0</span></button><button type="button" role="tab" aria-selected="false" data-result-tab="claims">Claims <span id="claim-count">0</span></button></div>
+            <div id="issues-list" class="findings-list" role="tabpanel"></div><div id="claims-list" class="findings-list" role="tabpanel" hidden></div>
+            <div id="repair-section" class="repair-section" hidden><div class="repair-heading"><span>✦</span><h3>Proposed copy repair</h3></div><p id="repaired-copy"></p><span class="repair-disclaimer">Copy-only repair · image is unchanged</span></div>
+            <div id="review-section" class="review-section" hidden><strong>Human review needed</strong><ul id="review-reasons"></ul></div>
+            <a id="download-report" class="download-button" href="#" download>↓ Download report JSON</a>
+          </div>
+        </section>
+      </div>
+      <section id="message-inspector" class="panel inspector-panel" aria-labelledby="inspector-heading"><div class="panel-heading"><div class="section-title"><span class="section-number">04</span><h2 id="inspector-heading">Under the hood</h2><span class="inspector-caption">Structured messages across your agents</span></div><div class="inspector-tabs" role="tablist" aria-label="Inspect audit data"><button class="active" type="button" role="tab" aria-selected="true" data-inspector-tab="messages">Agent messages</button><button type="button" role="tab" aria-selected="false" data-inspector-tab="json">Report JSON</button></div></div><div id="messages-view" class="message-view"><div id="message-list" class="message-list"><p class="inspector-empty">No messages yet. Start an audit to inspect the handoffs.</p></div><div class="message-detail"><div class="code-heading"><span id="message-detail-label">MESSAGE PAYLOAD</span><span class="code-language">JSON</span></div><pre id="message-json">{ "execution_mode": "MOCK", "status": "waiting_for_audit" }</pre></div></div><div id="json-view" class="json-view" hidden><div class="code-heading"><span>CANONICAL AUDIT REPORT</span><button id="copy-report" type="button" class="text-button" disabled>Copy JSON</button></div><pre id="report-json">No report yet.</pre></div></section>
+      <footer class="page-footer"><span><strong>AdProof</strong> · Agent infrastructure demo</span><span>Mock results illustrate orchestration; they are not legal or platform approval.</span></footer>
+    </div>
+  </main>
+</body>
+</html>

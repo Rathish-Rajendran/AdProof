@@ -1,0 +1,9 @@
+[project]
+name = "adproof-local-demo"
+version = "0.1.0"
+description = "Credential-free local demo of AdProof agent orchestration"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.ruff]
+line-length = 110

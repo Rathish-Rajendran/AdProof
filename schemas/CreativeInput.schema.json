@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "ad_copy": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Ad Copy",
+      "type": "string"
+    },
+    "image_url": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Image Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "image_url",
+    "ad_copy"
+  ],
+  "title": "CreativeInput",
+  "type": "object"
+}

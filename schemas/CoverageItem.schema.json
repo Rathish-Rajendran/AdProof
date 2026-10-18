@@ -1,0 +1,38 @@
+{
+  "$defs": {
+    "CoverageStatus": {
+      "enum": [
+        "CHECKED",
+        "PARTIAL",
+        "NOT_CHECKED",
+        "FAILED",
+        "NOT_APPLICABLE"
+      ],
+      "title": "CoverageStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "status": {
+      "$ref": "#/$defs/CoverageStatus"
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "CoverageItem",
+  "type": "object"
+}
