@@ -303,8 +303,7 @@ Give Person 2 this exact signature to implement:
 ```python
 async def verify_campaign(
     request: VerificationRequest,
-) -> VerificationResult:
-    ...
+) -> VerificationResult: ...
 ```
 
 Give Person 3 these signatures:
@@ -314,13 +313,12 @@ async def inspect_creative(
     campaign: CampaignInput,
     *,
     frozen_image: bytes,
-) -> InspectionResult:
-    ...
+) -> InspectionResult: ...
+
 
 async def repair_copy(
     request: RepairRequest,
-) -> RepairResult:
-    ...
+) -> RepairResult: ...
 ```
 
 Person 1 owns the image snapshot cache and always supplies `frozen_image`. Person 3's inspector must not fetch the image URL again; it reports the digest of the bytes actually inspected. Person 1 does not send image bytes to the verifier/remediator.
