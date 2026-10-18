@@ -273,6 +273,8 @@ Open [ASI:One](https://asi1.ai). Select `adproof-orchestrator` in the **To:** bo
 
 Try these prompts:
 
+See [demo test data](docs/demo-test-data.md) for the exact ASI:One inputs, expected results, and sample image.
+
 - Upload an AeroBeat AB-01 ad image, optionally captioned `AeroBeat AB-01 headphones` → image checks; any original issue still needs review, with suggested text in `fixed_text`.
 - `check AeroBeat AB-01 headphones are completely waterproof. Get 48-hour battery life. Now $60—50% off!` → checks the claims and may repair unsupported copy once.
 - `generate a Google Ads ad for AeroBeat AB-01 headphones for US adults` → expected ready result (`needs_review: false`) for the current supported example.

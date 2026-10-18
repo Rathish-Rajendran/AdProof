@@ -105,6 +105,21 @@ def _score_checks(
     return checks
 
 
+def _sanitize_report_strings(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.replace('"', "’")
+    if isinstance(value, dict):
+        return {
+            _sanitize_report_strings(key): _sanitize_report_strings(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_report_strings(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_report_strings(item) for item in value)
+    return value
+
+
 def report_summary(report: AuditReport) -> dict[str, Any]:
     """Build the compact deterministic JSON report."""
     if report.check_input_type == "image" and report.original_audit is not None:
@@ -115,37 +130,38 @@ def report_summary(report: AuditReport) -> dict[str, Any]:
         )
         if any(not check["passed"] for check in original_checks):
             compliance = _compliance_summary(original_checks, report.original_audit)
-            issue_count = sum(
-                check["name"].startswith("claim: ") and not check["passed"]
-                for check in original_checks
+            issue_count = len(compliance) if isinstance(compliance, list) else 0
+            return _sanitize_report_strings(
+                {
+                    "audit_id": report.audit_id,
+                    "needs_review": True,
+                    "confidence": _confidence(original_checks),
+                    "summary": (
+                        f"Needs review: the image has {issue_count} non-compliant claim(s); "
+                        "suggested replacement text is in fixed_text."
+                    ),
+                    "ad": _ad_summary(report),
+                    "compliance": compliance,
+                    "claims": _claims_summary(report.original_audit),
+                }
             )
-            return {
-                "audit_id": report.audit_id,
-                "needs_review": True,
-                "confidence": _confidence(original_checks),
-                "summary": (
-                    f"Needs review: the image has {issue_count} non-compliant claim(s); "
-                    "suggested replacement text is in fixed_text."
-                ),
-                "ad": _ad_summary(report),
-                "compliance": compliance,
-                "claims": _claims_summary(report.original_audit),
-            }
 
     final_audit = _final_audit(report)
     checks = score_checks(report)
     confidence = _confidence(checks)
     verdict = _verdict(report.final_decision, confidence, checks)
     compliance = _compliance_summary(checks, final_audit)
-    return {
-        "audit_id": report.audit_id,
-        "needs_review": verdict != "READY",
-        "confidence": confidence,
-        "summary": _summary_text(verdict, compliance, report, final_audit),
-        "ad": _ad_summary(report),
-        "compliance": compliance,
-        "claims": _claims_summary(final_audit),
-    }
+    return _sanitize_report_strings(
+        {
+            "audit_id": report.audit_id,
+            "needs_review": verdict != "READY",
+            "confidence": confidence,
+            "summary": _summary_text(verdict, compliance, report, final_audit),
+            "ad": _ad_summary(report),
+            "compliance": compliance,
+            "claims": _claims_summary(final_audit),
+        }
+    )
 
 
 def render_report(report: AuditReport) -> str:
@@ -166,15 +182,17 @@ def render_generation_failure(
             [message, *(violation for attempt in attempt_violations or [] for violation in attempt)]
         )
     )
-    summary = {
-        "audit_id": audit_id or uuid4().hex,
-        "needs_review": True,
-        "confidence": 0,
-        "summary": _review_summary(compliance),
-        "ad": None,
-        "compliance": compliance,
-        "claims": [],
-    }
+    summary = _sanitize_report_strings(
+        {
+            "audit_id": audit_id or uuid4().hex,
+            "needs_review": True,
+            "confidence": 0,
+            "summary": _review_summary(compliance),
+            "ad": None,
+            "compliance": compliance,
+            "claims": [],
+        }
+    )
     return "```json\n" + json.dumps(summary, indent=2, ensure_ascii=False) + "\n```"
 
 
@@ -395,7 +413,7 @@ def _compliance_summary(
                     if claim.status == ClaimStatus.CONTRADICTED
                     else "not backed by company data"
                 )
-                message = f'Claim "{claim.claim}" is {state}: {claim.explanation}'
+                message = f"Claim ‘{claim.claim}’ is {state}: {claim.explanation}"
         elif name.startswith("policy: "):
             message = f"Breaks {name.removeprefix('policy: ')}"
         elif name == "no_unresolved_issues":

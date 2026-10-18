@@ -803,7 +803,7 @@ async def test_image_check_can_fix_text_and_invalid_images_return_safe_json():
     assert rendered["needs_review"] is True
     assert rendered["confidence"] < 100
     assert rendered["summary"] == (
-        "Needs review: the image has 1 non-compliant claim(s); "
+        f"Needs review: the image has {len(rendered['compliance'])} non-compliant claim(s); "
         "suggested replacement text is in fixed_text."
     )
     original_claim = report.original_audit.claims[0]
@@ -812,7 +812,7 @@ async def test_image_check_can_fix_text_and_invalid_images_return_safe_json():
         report.original_audit,
     )
     assert any(
-        f'Claim "{original_claim.claim}" is contradicted:' in message
+        f"Claim ‘{original_claim.claim}’ is contradicted:" in message
         for message in rendered["compliance"]
     )
     assert rendered["claims"] == []

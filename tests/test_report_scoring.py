@@ -109,6 +109,7 @@ def _policy_check(
 def _report(
     decision: Decision = Decision.PASS,
     *,
+    ad_copy: str = "AeroBeat AB-01 offers up to 30 hours.",
     claims: list[Claim] | None = None,
     policies: list[PolicyCheck] | None = None,
     audit_errors: list[TypedError] | None = None,
@@ -122,7 +123,7 @@ def _report(
         candidate_id="candidate-1",
         creative_version=1,
         phase=Phase.ORIGINAL,
-        ad_copy="AeroBeat AB-01 offers up to 30 hours.",
+        ad_copy=ad_copy,
         source_image_sha256="b" * 64,
         model_input_sha256="c" * 64,
         asset_ref="https://aerobeat.example/products/ab-01",
@@ -241,7 +242,7 @@ def test_insufficient_claim_fails_and_five_check_confidence_formula_is_80():
     assert result["needs_review"] is True
     assert result["confidence"] == 86
     assert result["compliance"] == [
-        'Claim "Up to 30 hours with ANC off." is not backed by company data: '
+        "Claim ‘Up to 30 hours with ANC off.’ is not backed by company data: "
         "No evidence establishes this claim."
     ]
     five_checks = [
@@ -275,10 +276,32 @@ def test_contradicted_claim_is_a_plain_language_compliance_item():
     )
 
     assert result["compliance"] == [
-        'Claim "AeroBeat AB-01 headphones are completely waterproof." is contradicted: '
+        "Claim ‘AeroBeat AB-01 headphones are completely waterproof.’ is contradicted: "
         "The product page says it is not waterproof."
     ]
     assert result["claims"] == []
+
+
+def test_report_summary_escapes_no_ascii_double_quotes():
+    claim = _claim(
+        ClaimStatus.CONTRADICTED,
+        text='AeroBeat calls this "waterproof".',
+    ).model_copy(update={"explanation": 'The product page says "not waterproof".'})
+    report = _report(
+        Decision.FIX_REQUIRED,
+        ad_copy='AeroBeat says "waterproof".',
+        claims=[claim],
+    )
+
+    result = report_summary(report)
+    serialized = json.dumps(result, ensure_ascii=False)
+
+    assert '\\"' not in serialized
+    assert result["ad"]["ad_copy"] == "AeroBeat says ’waterproof’."
+    assert result["compliance"] == [
+        "Claim ‘AeroBeat calls this ’waterproof’.’ is contradicted: "
+        "The product page says ’not waterproof’."
+    ]
 
 
 def test_audit_ad_uses_landing_page_evidence_url():
