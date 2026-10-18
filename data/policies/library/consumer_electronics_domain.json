@@ -1,0 +1,39 @@
+[
+  {
+    "policy_id": "FTC_DECEPTIVE_PRICING_FORMER_PRICE_REFERENCE",
+    "issuer": "FTC",
+    "platform": "any",
+    "jurisdiction": "US",
+    "title": "16 CFR Part 233 — Guides Against Deceptive Pricing",
+    "source_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-15/title-16.xml?part=233",
+    "section": "233.1",
+    "excerpts": [
+      "the actual, bona fide price at which the article was offered to the public on a regular basis for a reasonably substantial period of time"
+    ],
+    "retrieved_at": "2026-10-18T08:05:46Z",
+    "content_sha256": "cca7ad2653a9a6f1fd65b9b766d1891815c7ba295c73cbf94e13cc2a28c4fdb2",
+    "summary": "The guide describes the basis for a former-price comparison. Paraphrase.",
+    "topics": ["deceptive pricing", "former price"],
+    "claim_types": ["price", "discount"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "FTC_MADE_IN_USA_LABELING_REFERENCE",
+    "issuer": "FTC",
+    "platform": "any",
+    "jurisdiction": "US",
+    "title": "16 CFR Part 323 — Made in USA Labeling Rule",
+    "source_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-15/title-16.xml?part=323",
+    "section": "323.2",
+    "excerpts": [
+      "all or virtually all ingredients or components of the product are made and sourced in the United States."
+    ],
+    "retrieved_at": "2026-10-18T08:05:46Z",
+    "content_sha256": "2f036a34b4b3f590bc34920eb7dc4b3e9019d761ca7732c4c878afc441571720",
+    "summary": "The rule specifies the standard for a product label stating Made in the United States. Paraphrase.",
+    "topics": ["origin claims"],
+    "claim_types": ["origin"],
+    "enforced_by": null
+  }
+]

@@ -17,6 +17,7 @@ from adproof.domain.models import (
     VerificationRequest,
     VerificationResult,
 )
+from adproof.generator.generator import GenerationResult, GenerationTask
 from adproof.infrastructure.budget import BudgetExhausted, ModelCallBudget
 from adproof.infrastructure.telemetry import record_event
 from adproof.transport.models import (
@@ -98,6 +99,7 @@ class UAgentsGateway:
         pending: PendingTaskRegistry,
         verifier_address: str,
         remediator_address: str,
+        generator_address: str | None = None,
         budget: ModelCallBudget,
         execution_mode: str,
     ):
@@ -107,6 +109,8 @@ class UAgentsGateway:
             SpecialistOperation.VERIFY: verifier_address,
             SpecialistOperation.REPAIR: remediator_address,
         }
+        if generator_address:
+            self.addresses[SpecialistOperation.GENERATE] = generator_address
         self.budget = budget
         self.execution_mode = execution_mode
 
@@ -133,6 +137,19 @@ class UAgentsGateway:
             candidate_id=request.candidate_id,
             creative_version=1,
             phase="REPAIR",
+            deadline=request.deadline,
+        )
+
+    async def generate(self, request: GenerationTask) -> GenerationResult | TypedError:
+        return await self._dispatch(
+            operation=SpecialistOperation.GENERATE,
+            request=request,
+            response_model=GenerationResult,
+            audit_id=request.audit_id,
+            campaign_id=request.campaign_id,
+            candidate_id=request.candidate_id,
+            creative_version=request.creative_version,
+            phase="ORIGINAL",
             deadline=request.deadline,
         )
 
@@ -284,9 +301,14 @@ class UAgentsGateway:
                 if "PAYLOAD_TOO_LARGE" in str(exc)
                 else TypedErrorCode.MODEL_MALFORMED_OUTPUT
             )
+            message = (
+                "Specialist reply was too large to transmit (PAYLOAD_TOO_LARGE)."
+                if code == TypedErrorCode.PAYLOAD_TOO_LARGE
+                else f"Specialist returned an invalid payload ({type(exc).__name__})."
+            )
             return TypedError(
                 code=code,
-                message=f"Specialist returned an invalid payload ({type(exc).__name__}).",
+                message=message,
             )
 
 

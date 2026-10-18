@@ -141,6 +141,51 @@ async def test_router_routes_jobs_falls_back_and_aggregates_records(monkeypatch)
     ]
 
 
+@pytest.mark.asyncio
+async def test_gemini_defaults_route_verification_to_pro_and_other_jobs_to_flash(
+    monkeypatch,
+) -> None:
+    constructed: list[dict[str, Any]] = []
+
+    def make_client(provider: str):
+        def factory(**kwargs):
+            constructed.append({"provider": provider, **kwargs})
+            return _StubClient(provider=provider, **kwargs)
+
+        return factory
+
+    monkeypatch.setattr(model_module, "OllamaClient", make_client("ollama"))
+    monkeypatch.setattr(model_module, "GoogleGenAIClient", make_client("gemini"))
+    model = build_model_client(Settings(), ModelCallBudget(8))
+
+    purposes = (
+        "claim_extraction",
+        "evidence_assessment",
+        "ad_generation",
+        "copy_remediation",
+        "image_inspection",
+    )
+    for purpose in purposes:
+        await model.generate_json(
+            ["return JSON"],
+            _Output,
+            deadline=_deadline(),
+            purpose=purpose,
+        )
+
+    assert [record["model_spec"] for record in model.call_records] == [
+        "gemini:gemini-3.1-pro-preview",
+        "gemini:gemini-3.1-pro-preview",
+        "gemini:gemini-3.5-flash",
+        "gemini:gemini-3.5-flash",
+        "gemini:gemini-3.5-flash",
+    ]
+    assert {(client["provider"], client["model"]) for client in constructed} == {
+        ("gemini", "gemini-3.1-pro-preview"),
+        ("gemini", "gemini-3.5-flash"),
+    }
+
+
 def test_job_overrides_fall_back_to_the_default_spec() -> None:
     settings = Settings(model_default="ollama:qwen2.5:3b")
 
@@ -148,3 +193,4 @@ def test_job_overrides_fall_back_to_the_default_spec() -> None:
     assert settings.model_spec_for("evidence_assessment") == "ollama:qwen2.5:3b"
     assert settings.model_spec_for("copy_remediation") == "ollama:qwen2.5:3b"
     assert settings.model_spec_for("not_a_job") == "ollama:qwen2.5:3b"
+    assert "gemini:gemini-3.1-pro-preview" not in settings.model_specs.values()

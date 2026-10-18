@@ -8,6 +8,7 @@ def _addresses() -> dict[str, str]:
         "orchestrator": "agent-orchestrator",
         "verifier": "agent-verifier",
         "remediator": "agent-remediator",
+        "generator": "agent-generator",
     }
 
 

@@ -1,0 +1,62 @@
+[
+  {
+    "policy_id": "META_SPECIAL_AD_CATEGORY_CAMPAIGN_SELECTION_REFERENCE",
+    "issuer": "Meta",
+    "platform": "meta_ads",
+    "jurisdiction": "US",
+    "title": "Meta Special Ad Categories — campaign selection",
+    "source_url": "https://www.facebook.com/business/help/298000447747885",
+    "section": "Choosing a Special Ad Category",
+    "excerpts": [
+      "When you create a campaign, you are required to specify if you are running an ad to promote a Special Ad Category."
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "4cf6c2880f27eb1002ff95c80fe9173b3c29c15f6982eefb947dc4a814865847",
+    "match_mode": "raw_html_unescaped",
+    "summary": "Meta requires advertisers to identify campaigns promoting a Special Ad Category. Paraphrase.",
+    "topics": ["special ad categories", "campaign setup"],
+    "claim_types": ["audience"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "META_SPECIAL_AD_CATEGORY_REJECTION_REFERENCE",
+    "issuer": "Meta",
+    "platform": "meta_ads",
+    "jurisdiction": "US",
+    "title": "Meta Special Ad Categories — rejection",
+    "source_url": "https://www.facebook.com/business/help/298000447747885",
+    "section": "Choosing a Special Ad Category",
+    "excerpts": [
+      "Ads may be rejected if the advertiser does not choose an appropriate Special Ad Category."
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "4cf6c2880f27eb1002ff95c80fe9173b3c29c15f6982eefb947dc4a814865847",
+    "match_mode": "raw_html_unescaped",
+    "summary": "Meta may reject ads when an appropriate Special Ad Category is not selected. Paraphrase.",
+    "topics": ["special ad categories", "ad review"],
+    "claim_types": ["audience"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "META_SPECIAL_AD_CATEGORY_AUDIENCE_RESTRICTIONS_REFERENCE",
+    "issuer": "Meta",
+    "platform": "meta_ads",
+    "jurisdiction": "US",
+    "title": "Meta Special Ad Categories — audience selection",
+    "source_url": "https://www.facebook.com/business/help/298000447747885",
+    "section": "Audience selection",
+    "excerpts": [
+      "Limited audience selection tools for ads about employment, housing opportunities or financial products and services to help protect people from unlawful discrimination across our platforms"
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "4cf6c2880f27eb1002ff95c80fe9173b3c29c15f6982eefb947dc4a814865847",
+    "match_mode": "raw_html_unescaped",
+    "summary": "Meta describes limited audience selection tools for specified ad categories to protect against unlawful discrimination. Paraphrase.",
+    "topics": ["special ad categories", "audience targeting", "discrimination"],
+    "claim_types": ["audience"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  }
+]

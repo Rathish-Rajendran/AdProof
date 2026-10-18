@@ -16,7 +16,12 @@ from adproof.domain.models import (
 from adproof.infrastructure.budget import ModelCallBudget
 from adproof.model_client import GoogleGenAIClient, ModelClientError
 from adproof.orchestrator.gateway import LocalGateway, UAgentsGateway
-from adproof.transport.models import SpecialistOperation, SpecialistResult, SpecialistTask
+from adproof.transport.models import (
+    MAX_ENVELOPE_BYTES,
+    SpecialistOperation,
+    SpecialistResult,
+    SpecialistTask,
+)
 from adproof.transport.pending import PendingTaskRegistry
 
 
@@ -101,6 +106,62 @@ async def test_uagents_gateway_retries_with_new_task_id_attempt_and_trace_header
     assert all(
         task.trace_headers == {"sentry-trace": "trace", "baggage": "bag"} for task in context.tasks
     )
+
+
+@pytest.mark.asyncio
+async def test_uagents_gateway_reports_oversized_specialist_reply(monkeypatch):
+    import adproof.orchestrator.gateway as gateway_module
+
+    monkeypatch.setattr(gateway_module, "trace_headers", lambda: None)
+    pending = PendingTaskRegistry()
+    context = _FakeContext(pending)
+
+    async def send_large_reply(address, task, timeout):
+        context.tasks.append(task)
+        common = {
+            "schema_version": "1.0",
+            "audit_id": task.audit_id,
+            "task_id": task.task_id,
+            "request_id": task.request_id,
+            "campaign_id": task.campaign_id,
+            "candidate_id": task.candidate_id,
+            "creative_version": task.creative_version,
+            "phase": task.phase,
+            "operation": task.operation,
+            "attempt": task.attempt,
+            "execution_mode": task.execution_mode,
+        }
+        result = SpecialistResult(
+            **common,
+            payload_json="x" * (MAX_ENVELOPE_BYTES * 2),
+        )
+        assert await pending.accept(address, result)
+        return SimpleNamespace(status=SimpleNamespace(value="success"))
+
+    context.send = send_large_reply
+    gateway = UAgentsGateway(
+        context=context,  # type: ignore[arg-type]
+        pending=pending,
+        verifier_address="verifier",
+        remediator_address="remediator",
+        budget=ModelCallBudget(20),
+        execution_mode="LIVE",
+    )
+    result = await gateway._dispatch(
+        operation=SpecialistOperation.VERIFY,
+        request=_Request(request_id="request"),
+        response_model=_Response,
+        audit_id="audit",
+        campaign_id="campaign",
+        candidate_id="candidate",
+        creative_version=1,
+        phase="ORIGINAL",
+        deadline=datetime.now(UTC) + timedelta(seconds=10),
+    )
+
+    assert isinstance(result, TypedError)
+    assert result.code == TypedErrorCode.PAYLOAD_TOO_LARGE
+    assert result.message == "Specialist reply was too large to transmit (PAYLOAD_TOO_LARGE)."
 
 
 @pytest.mark.asyncio

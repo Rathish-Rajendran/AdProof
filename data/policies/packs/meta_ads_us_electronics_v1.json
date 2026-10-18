@@ -1,0 +1,23 @@
+{
+  "pack_id": "meta_ads_us_electronics_v1",
+  "version": "1.0.0",
+  "publisher": "AdProof",
+  "platform": "meta_ads",
+  "jurisdiction": "US",
+  "language": "en",
+  "category": "electronics",
+  "audience": "adults",
+  "freshness_days": 7,
+  "required_checks": [
+    "ad_text_claim_extraction",
+    "evidence_quote_validation",
+    "platform_policy_rule_evaluation"
+  ],
+  "required_rule_ids": [],
+  "optional_rule_ids": [
+    "FTC_ENDORSEMENT_GUIDES_REFERENCE",
+    "FTC_CONSUMER_REVIEW_RULE_REFERENCE",
+    "FTC_DECEPTIVE_PRICING_FORMER_PRICE_REFERENCE"
+  ],
+  "notes": "Meta policy references are retained in the research library, but no verified Meta rule with a supported claim-check predicate is ACTIVE in the enforcement catalog. Verification therefore requires human review."
+}

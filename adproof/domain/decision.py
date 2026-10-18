@@ -64,7 +64,9 @@ def coverage_is_complete(coverage: Coverage) -> bool:
         coverage.image,
         coverage.platform_policy,
     )
-    return all(item.status == CoverageStatus.CHECKED for item in required)
+    return all(
+        item.status in {CoverageStatus.CHECKED, CoverageStatus.NOT_APPLICABLE} for item in required
+    )
 
 
 def decide_result(

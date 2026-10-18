@@ -114,3 +114,15 @@ The user also confirmed ingestion in their Sentry account.
 Through the Agentverse mailbox and all three agents, audit `d29f13abaff94be5a6f23d8ce613055f` completed in about 19.4 s: original `FIX_REQUIRED` with four issues, one copy-only repair, independent re-check `PASS`, final `PASS`, and `repair_verified=true`.
 
 Remaining human step: run `docker compose up` on an always-on host using the same persistent `runtime/` seeds so the agent address and mailbox remain valid.
+
+## Synthetic corpus and hybrid index
+
+The synthetic AeroBeat corpus contains 23 Markdown documents totaling 36,792 bytes. The AB-01 corpus facts test passed, including the restriction that “waterproof” appears only as “not waterproof” in AB-01 documents. The local SQLite index was built with FastEmbed `BAAI/bge-small-en-v1.5`; the first model download populated `/tmp/fastembed_cache` with 67,226,806 bytes (about 64.1 MiB). The build embedded the corpus in 2.856 s; total command wall time, including model download/load, was 10.51 s. Fake-embedder retrieval tests and the full test suite passed.
+
+## Policy-library verification
+
+`uv run python scripts/verify_policy_library.py` reported `FOUND` for every stored excerpt. The Meta source returned no verified excerpts and remains reference-only, with no active enforcement rule. Google’s normalized source hash changed between consecutive official fetches while both verbatim excerpts remained present; `google_ads.json` records the latest observed hash, `b6bfd5fa725437e045b19d6acb70ee03df7eb581366daa76cd651409b73a4b53`, and retrieval time `2026-10-18T08:14:31Z`. The source-change notice is retained for review rather than treating the earlier hash as authoritative.
+
+## Live RAG ad-generation smoke
+
+Two in-process generation commands were run with Gemini and the personal key binding. The Google Ads run (`runtime/samples/generate_google.json`, audit `7ae69c1e77924e49b9bfcbd1d2f83b3c`) generated corpus-cited copy and returned `PASS` with no issues; no repair was needed. The Meta run (`runtime/samples/generate_meta.json`, audit `e005dd87ed0d4a5495b60f7549cfd1b6`) returned `HUMAN_REVIEW`; the CLI summary showed no issues and no repair/re-check, so the reason was not recorded in that output. Both sample files contain only the generated JSON reports.

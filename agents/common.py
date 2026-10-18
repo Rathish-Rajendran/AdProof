@@ -9,12 +9,13 @@ from uagents_core.identity import Identity
 
 from adproof.infrastructure.settings import Settings, load_or_create_seeds, write_public_addresses
 
-PORTS = {"orchestrator": 8100, "verifier": 8101, "remediator": 8102}
+PORTS = {"orchestrator": 8100, "verifier": 8101, "remediator": 8102, "generator": 8103}
 TRANSPORT_TEST_CLIENT_SEED = "adproof-local-transport-session-proof"
 SEED_ENV = {
     "orchestrator": "ORCHESTRATOR_SEED",
     "verifier": "VERIFIER_SEED",
     "remediator": "REMEDIATOR_SEED",
+    "generator": "GENERATOR_SEED",
 }
 
 

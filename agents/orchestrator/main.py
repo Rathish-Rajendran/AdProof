@@ -22,8 +22,11 @@ from uagents_core.contrib.protocols.chat import (
 )
 
 from adproof.domain.models import AuditReport, CampaignInput, ExecutionMode
+from adproof.generator.workflow import run_generation_workflow
+from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry, record_event
+from adproof.model_client import ModelClientError, build_model_client
 from adproof.orchestrator.cards import (
     card_action_from_text,
     extract_card_action,
@@ -31,10 +34,15 @@ from adproof.orchestrator.cards import (
 )
 from adproof.orchestrator.gateway import UAgentsGateway
 from adproof.orchestrator.limits import OwnerAuditLimiter
-from adproof.orchestrator.report_view import render_report
+from adproof.orchestrator.report_view import (
+    render_generation_failure,
+    render_report,
+)
 from adproof.orchestrator.workflow import build_live_dependencies, run_campaign
+from adproof.rag.index import CorpusIndex
 from adproof.transport.models import SpecialistOperation, SpecialistResult, SpecialistTask
 from adproof.transport.pending import PendingTaskRegistry
+from adproof.verifier.policy import PolicyEngine
 from agents.common import PORTS, load_identities, make_agent, repository_root
 
 
@@ -110,6 +118,7 @@ def _help_message() -> str:
             "- `demo aerobeat` — Audit the unsafe AeroBeat ad and attempt one copy-only repair.",
             "- `demo aerobeat49` — Show that a copy repair cannot fix the `$49` image.",
             "- `demo aerobeat correct` — Audit the already-correct AeroBeat ad.",
+            "- `generate <text>` — Generate and independently preflight a corpus-grounded text ad.",
             "- `example` — Show an example campaign input.",
             "- `status <audit_id>` — Show an audit's current state.",
             "- `report <audit_id>` — Show a saved audit report.",
@@ -169,6 +178,7 @@ def run() -> None:
                 pending=pending,
                 verifier_address=addresses["verifier"],
                 remediator_address=addresses["remediator"],
+                generator_address=addresses["generator"],
                 budget=dependencies.budget,
                 execution_mode=ExecutionMode.LIVE.value,
             )
@@ -182,6 +192,50 @@ def run() -> None:
                     session_id=session_id,
                     dependencies=replace(dependencies, gateway=gateway),
                 )
+        finally:
+            await _owner_limiter.release(owner)
+
+    async def execute_generation(
+        prompt: str, *, owner: str, session_id: str, ctx: Context
+    ) -> AuditReport | None:
+        if not await _owner_limiter.acquire(owner):
+            return None
+        try:
+            gateway = UAgentsGateway(
+                context=ctx,
+                pending=pending,
+                verifier_address=addresses["verifier"],
+                remediator_address=addresses["remediator"],
+                generator_address=addresses["generator"],
+                budget=dependencies.budget,
+                execution_mode=ExecutionMode.LIVE.value,
+            )
+            catalog = root / "data/policies/catalog.json"
+            policies = {
+                "google_ads": PolicyEngine.from_files(
+                    catalog, root / "data/policies/packs/google_ads_us_electronics_v1.json"
+                ),
+                "meta_ads": PolicyEngine.from_files(
+                    catalog, root / "data/policies/packs/meta_ads_us_electronics_v1.json"
+                ),
+            }
+            model = build_model_client(settings, ModelCallBudget(40))
+            report = await run_generation_workflow(
+                prompt,
+                index=CorpusIndex(),
+                model=model,
+                settings=settings,
+                policies=policies,
+                gateway=gateway,
+            )
+            dependencies.store.save_workflow(
+                audit_id=report.audit_id,
+                owner=owner,
+                session_id=session_id,
+                state=report.workflow_status.value,
+                payload={"report": report.model_dump(mode="json")},
+            )
+            return report
         finally:
             await _owner_limiter.release(owner)
 
@@ -271,6 +325,44 @@ def run() -> None:
         elif lowered == "example":
             example_path = root / "schemas/examples/CampaignInput.json"
             reply = "```json\n" + example_path.read_text(encoding="utf-8").strip() + "\n```"
+        elif lowered == "generate" or lowered.startswith("generate "):
+            prompt = text[len("generate") :].strip()
+            if not prompt:
+                reply = render_generation_failure(
+                    prompt,
+                    "Usage: generate <text> — name one AeroBeat product to create an ad.",
+                )
+                await _send_terminal(ctx, sender, reply)
+                return
+            try:
+                report = await execute_generation(
+                    prompt,
+                    owner=sender,
+                    session_id=session_id,
+                    ctx=ctx,
+                )
+                if report is None:
+                    reply = render_generation_failure(
+                        prompt,
+                        "The per-owner concurrent-generation limit is currently full.",
+                    )
+                else:
+                    reply = render_report(report)
+            except Exception as exc:
+                record_event("generation_failed", role="orchestrator", result=type(exc).__name__)
+                reply = render_generation_failure(
+                    prompt,
+                    (
+                        exc.error.message
+                        if isinstance(exc, ModelClientError)
+                        else f"Generation could not be processed ({type(exc).__name__})."
+                    ),
+                    attempt_violations=(
+                        exc.error.details.get("attempt_violations")
+                        if isinstance(exc, ModelClientError)
+                        else None
+                    ),
+                )
         elif (text_card_action := _safe_text_card_action(text)) is not False and (
             text_card_action is not None
             or any(

@@ -9,11 +9,14 @@ from typing import ClassVar
 
 DEFAULT_MODEL_DEFAULT = "gemini:gemini-3.5-flash"
 DEFAULT_MODEL_IMAGE_INSPECTION = "gemini:gemini-3.5-flash"
+DEFAULT_MODEL_CLAIM_EXTRACTION = "gemini:gemini-3.1-pro-preview"
+DEFAULT_MODEL_EVIDENCE_ASSESSMENT = "gemini:gemini-3.1-pro-preview"
 MODEL_PURPOSES = (
     "image_inspection",
     "claim_extraction",
     "evidence_assessment",
     "copy_remediation",
+    "ad_generation",
 )
 
 
@@ -49,12 +52,14 @@ class Settings:
     model_claim_extraction: str | None = None
     model_evidence_assessment: str | None = None
     model_copy_remediation: str | None = None
+    model_ad_generation: str | None = None
 
     _PURPOSE_FIELDS: ClassVar[dict[str, str]] = {
         "image_inspection": "model_image_inspection",
         "claim_extraction": "model_claim_extraction",
         "evidence_assessment": "model_evidence_assessment",
         "copy_remediation": "model_copy_remediation",
+        "ad_generation": "model_ad_generation",
     }
 
     def __post_init__(self) -> None:
@@ -72,6 +77,16 @@ class Settings:
             object.__setattr__(self, "ollama_model", default_spec.model)
         elif default_spec.provider == "gemini":
             object.__setattr__(self, "gemini_model", default_spec.model)
+
+        if default_spec.provider == "gemini":
+            if self.model_claim_extraction is None:
+                object.__setattr__(self, "model_claim_extraction", DEFAULT_MODEL_CLAIM_EXTRACTION)
+            if self.model_evidence_assessment is None:
+                object.__setattr__(
+                    self,
+                    "model_evidence_assessment",
+                    DEFAULT_MODEL_EVIDENCE_ASSESSMENT,
+                )
 
         for purpose in MODEL_PURPOSES:
             field = self._PURPOSE_FIELDS[purpose]
@@ -116,6 +131,7 @@ class Settings:
             model_claim_extraction=os.getenv("ADPROOF_MODEL_CLAIM_EXTRACTION") or None,
             model_evidence_assessment=os.getenv("ADPROOF_MODEL_EVIDENCE_ASSESSMENT") or None,
             model_copy_remediation=os.getenv("ADPROOF_MODEL_COPY_REMEDIATION") or None,
+            model_ad_generation=os.getenv("ADPROOF_MODEL_AD_GENERATION") or None,
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
             ollama_model=os.getenv("OLLAMA_MODEL") or None,
             ollama_base_url=os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434",
@@ -136,7 +152,7 @@ def load_or_create_seeds(runtime_dir: Path, supplied: dict[str, str | None]) -> 
         existing = json.loads(seed_path.read_text(encoding="utf-8"))
     seeds = {
         role: supplied.get(role) or existing.get(role) or secrets.token_urlsafe(32)
-        for role in ("orchestrator", "verifier", "remediator")
+        for role in ("orchestrator", "verifier", "remediator", "generator")
     }
     seed_path.write_text(json.dumps(seeds, sort_keys=True), encoding="utf-8")
     seed_path.chmod(0o600)

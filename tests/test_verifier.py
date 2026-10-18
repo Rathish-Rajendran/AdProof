@@ -120,6 +120,36 @@ async def test_price_arithmetic_flags_forty_percent_when_page_computes_twenty_fi
 
 
 @pytest.mark.asyncio
+async def test_meta_policy_without_active_meta_rule_returns_human_review_error():
+    meta_request = request("AeroBeat sound").model_copy(
+        update={
+            "context": CampaignContext(
+                platform="meta_ads",
+                jurisdiction="US",
+                language="en",
+                audience="adults",
+                product_category="electronics",
+            )
+        }
+    )
+    meta_policy = PolicyEngine.from_files(
+        ROOT / "data/policies/catalog.json",
+        ROOT / "data/policies/packs/meta_ads_us_electronics_v1.json",
+    )
+
+    result = await verify_campaign(
+        meta_request,
+        VerificationDependencies(http=StaticHttp(), model=FakeModelClient([]), policy=meta_policy),  # type: ignore[arg-type]
+    )
+
+    assert isinstance(result, TypedError)
+    assert (
+        result.message
+        == "Meta Ads policy checks are not active yet: no verified Meta rule text is available, so a human review is required."
+    )
+
+
+@pytest.mark.asyncio
 async def test_injected_quote_is_rejected_as_invalid_evidence_and_routes_to_review():
     model = FakeModelClient(
         [

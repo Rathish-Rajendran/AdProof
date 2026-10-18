@@ -48,7 +48,7 @@ def _candidate(candidate_id: str, *, phase: Phase, ad_copy: str) -> CreativeCand
         ad_copy=ad_copy,
         source_image_sha256="a" * 64,
         model_input_sha256="b" * 64,
-        asset_ref="https://example.com/aerobeat.png",
+        asset_ref="https://example.com/aerobeat.html",
         context={
             "platform": "google_ads",
             "jurisdiction": "US",
@@ -198,12 +198,27 @@ def test_render_case_one_report_as_numbered_markdown_with_repair_and_recheck():
             revised_audit=revised_audit,
         )
     )
-    assert list(result) == ["audit_id", "original_check", "fix", "recheck", "final"]
-    assert len(result["original_check"]["issues"]) == 4
-    assert result["recheck"] == {"decision": "PASS", "issues": [], "changed_decision": True}
-    assert result["final"]["decision"] == "PASS"
-    assert result["final"]["repair_verified"] is True
-    assert result["fix"]["image_changes"][0].startswith("The image shows a $49 price")
+    assert list(result) == [
+        "audit_id",
+        "needs_review",
+        "confidence",
+        "summary",
+        "ad",
+        "compliance",
+        "claims",
+    ]
+    assert result["needs_review"] is False
+    assert result["confidence"] == 100
+    assert result["summary"].startswith(
+        "The first draft had 4 issues; it was fixed once and re-checked. "
+        "Ready to run: all 0 claims are backed by the landing page;"
+    )
+    assert result["ad"] == {
+        "ad_copy": "Splash-resistant, up to 30 hours, now $60—25% off.",
+        "final_url": "https://example.com/aerobeat.html",
+    }
+    assert result["compliance"] == "OK"
+    assert result["claims"] == []
 
 
 def test_long_report_chunks_keep_the_json_block_whole():
@@ -230,16 +245,51 @@ def test_quota_failure_report_deduplicates_notes_and_omits_repair():
     )
 
     result = json.loads(rendered.removeprefix("```json\n").removesuffix("\n```"))
-    assert result["original_check"] == {"decision": None, "issues": []}
-    assert "fix" not in result
-    assert result["final"]["decision"] == "HUMAN_REVIEW"
-    assert result["notes"] == ["Gemini quota exhausted."]
+    assert list(result) == [
+        "audit_id",
+        "needs_review",
+        "confidence",
+        "summary",
+        "ad",
+        "compliance",
+        "claims",
+    ]
+    assert result["needs_review"] is True
+    assert result["confidence"] == 0
+    assert result["compliance"] == ["Gemini quota exhausted."]
+    assert result["ad"] == {
+        "ad_copy": "Completely waterproof; 48 hours; recommended by 1,000 athletes; 50% off.",
+        "final_url": "https://example.com/aerobeat.html",
+    }
+
+
+def test_coverage_failure_reason_appears_in_compliance():
+    audit = _audit(
+        candidate_id="candidate-original",
+        phase=Phase.ORIGINAL,
+        decision=Decision.HUMAN_REVIEW,
+    ).model_copy(
+        update={
+            "coverage": _coverage().model_copy(
+                update={
+                    "image": CoverageItem(
+                        status=CoverageStatus.PARTIAL,
+                        reason="Image inspection was incomplete.",
+                    )
+                }
+            )
+        }
+    )
+    report = _report(final_decision=Decision.HUMAN_REVIEW, original_audit=audit)
+
+    assert report_summary(report)["compliance"] == ["Image inspection was incomplete."]
 
 
 def test_help_and_welcome_are_markdown_and_include_scope():
     help_message = _help_message()
 
     assert "## AdProof commands" in help_message
+    assert help_message.count("`generate <text>`") == 1
     assert "`demo aerobeat`" in help_message
     assert "`demo aerobeat49`" in help_message
     assert "`demo aerobeat correct`" in help_message

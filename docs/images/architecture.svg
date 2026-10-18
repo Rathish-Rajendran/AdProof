@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="980" viewBox="0 0 1500 980" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker>
+    <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/></marker>
+  </defs>
+  <rect width="1500" height="980" fill="#ffffff"/>
+  <text x="40" y="48" font-size="28" font-weight="bold" fill="#0f172a">AdProof architecture</text>
+  <text x="40" y="76" font-size="15" fill="#475569">Grounded ad generation → independent verification → one fix → re-check → scored JSON</text>
+
+  <rect x="30" y="100" width="300" height="520" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="50" y="128" font-size="14" font-weight="bold" fill="#64748b">PUBLIC</text>
+  <rect x="350" y="100" width="1120" height="520" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="370" y="128" font-size="14" font-weight="bold" fill="#64748b">ADPROOF AGENTS (uAgents)</text>
+  <rect x="30" y="640" width="1440" height="230" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="50" y="668" font-size="14" font-weight="bold" fill="#64748b">DATA, MODELS AND OBSERVABILITY</text>
+
+  <rect x="60" y="150" width="240" height="100" rx="12" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+  <text x="180" y="190" font-size="18" font-weight="bold" text-anchor="middle" fill="#0c4a6e">User in ASI:One</text>
+  <text x="180" y="216" font-size="13" text-anchor="middle" fill="#0c4a6e">"generate a Google Ads ad</text>
+  <text x="180" y="234" font-size="13" text-anchor="middle" fill="#0c4a6e">for AB-01 for US adults"</text>
+
+  <rect x="60" y="320" width="240" height="90" rx="12" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+  <text x="180" y="358" font-size="18" font-weight="bold" text-anchor="middle" fill="#0c4a6e">Agentverse mailbox</text>
+  <text x="180" y="384" font-size="13" text-anchor="middle" fill="#0c4a6e">delivers messages to the agent</text>
+
+  <rect x="60" y="480" width="240" height="110" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="180" y="512" font-size="17" font-weight="bold" text-anchor="middle" fill="#7c2d12">JSON reply</text>
+  <text x="180" y="538" font-size="13" text-anchor="middle" fill="#7c2d12">needs_review · confidence · summary</text>
+  <text x="180" y="558" font-size="13" text-anchor="middle" fill="#7c2d12">ad · compliance · claims</text>
+  <text x="180" y="580" font-size="12" text-anchor="middle" fill="#9a3412">never auto-published</text>
+
+  <line x1="180" y1="250" x2="180" y2="318" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="192" y="290" font-size="13" fill="#334155">1  prompt</text>
+  <line x1="300" y1="365" x2="388" y2="300" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="388" y1="560" x2="302" y2="540" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="318" y="575" font-size="13" fill="#334155">8</text>
+
+  <rect x="390" y="150" width="440" height="450" rx="14" fill="#eef2ff" stroke="#4f46e5" stroke-width="2.5"/>
+  <text x="610" y="184" font-size="20" font-weight="bold" text-anchor="middle" fill="#1e1b4b">Orchestrator  :8100</text>
+  <text x="610" y="206" font-size="13" text-anchor="middle" fill="#4338ca">the only public agent</text>
+
+  <rect x="410" y="226" width="400" height="56" rx="8" fill="#ffffff" stroke="#0f766e" stroke-width="1.5"/>
+  <text x="425" y="250" font-size="14" font-weight="bold" fill="#0f766e">2  Parse request</text>
+  <text x="425" y="270" font-size="12" fill="#334155">platform · country · audience</text>
+
+  <rect x="410" y="296" width="400" height="110" rx="8" fill="#ffffff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text x="425" y="320" font-size="14" font-weight="bold" fill="#3730a3">Workflow</text>
+  <text x="425" y="344" font-size="13" fill="#334155">3  generate  →  4  verify</text>
+  <text x="425" y="366" font-size="13" fill="#334155">5  one fix (only if FIX_REQUIRED)</text>
+  <text x="425" y="388" font-size="13" fill="#334155">6  independent re-check</text>
+
+  <rect x="410" y="420" width="400" height="80" rx="8" fill="#ffffff" stroke="#0f766e" stroke-width="1.5"/>
+  <text x="425" y="444" font-size="14" font-weight="bold" fill="#0f766e">7  Score (code)</text>
+  <text x="425" y="466" font-size="12" fill="#334155">confidence = % of checks passed</text>
+  <text x="425" y="486" font-size="12" fill="#334155">ready at ≥95 and PASS, else needs review</text>
+
+  <rect x="410" y="514" width="400" height="44" rx="8" fill="#ffffff" stroke="#64748b"/>
+  <text x="425" y="541" font-size="13" fill="#334155"><tspan font-weight="bold">SQLite store</tspan> · saved audits</text>
+
+  <rect x="930" y="150" width="510" height="120" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="950" y="180" font-size="18" font-weight="bold" fill="#4c1d95">Generator  :8103</text>
+  <text x="950" y="206" font-size="13" fill="#334155">writes the ad from company data + brand voice + policies</text>
+  <text x="950" y="230" font-size="13" fill="#0f766e">code: length limits, no invented numbers</text>
+  <text x="950" y="250" font-size="12" fill="#64748b">Gemini Flash</text>
+
+  <rect x="930" y="295" width="510" height="150" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="950" y="325" font-size="18" font-weight="bold" fill="#4c1d95">Verifier  :8101</text>
+  <text x="950" y="351" font-size="13" fill="#334155">splits the ad into claims</text>
+  <text x="950" y="373" font-size="13" fill="#334155">finds its own evidence; exact quotes only</text>
+  <text x="950" y="397" font-size="13" fill="#0f766e">code: price math, policy rules, decision</text>
+  <text x="950" y="425" font-size="12" fill="#64748b">Gemini Pro</text>
+
+  <rect x="930" y="470" width="510" height="120" rx="12" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="950" y="500" font-size="18" font-weight="bold" fill="#4c1d95">Remediator  :8102</text>
+  <text x="950" y="526" font-size="13" fill="#334155">proposes one minimal copy fix</text>
+  <text x="950" y="550" font-size="13" fill="#0f766e">code: no invented numbers · cannot approve itself</text>
+  <text x="950" y="572" font-size="12" fill="#64748b">Gemini Flash</text>
+
+  <line x1="830" y1="330" x2="928" y2="210" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="852" y="262" font-size="13" fill="#334155">3</text>
+  <line x1="830" y1="355" x2="928" y2="370" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="866" y="350" font-size="13" fill="#334155">4, 6</text>
+  <line x1="830" y1="380" x2="928" y2="530" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="852" y="470" font-size="13" fill="#334155">5</text>
+
+  <rect x="60" y="690" width="330" height="150" rx="12" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <text x="80" y="720" font-size="17" font-weight="bold" fill="#064e3b">Company data (local RAG)</text>
+  <text x="80" y="748" font-size="13" fill="#334155">23 AeroBeat documents</text>
+  <text x="80" y="770" font-size="13" fill="#334155">keyword + meaning search</text>
+  <text x="80" y="792" font-size="13" fill="#334155">local SQLite index</text>
+
+  <rect x="410" y="690" width="330" height="150" rx="12" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <text x="430" y="720" font-size="17" font-weight="bold" fill="#064e3b">Policies</text>
+  <text x="430" y="748" font-size="13" fill="#334155">enforced: 2 Google Ads rules</text>
+  <text x="430" y="770" font-size="13" fill="#334155">reference: Google · Meta · FTC · UK ASA</text>
+  <text x="430" y="792" font-size="13" fill="#334155">quoted verbatim from official pages</text>
+
+  <rect x="760" y="690" width="370" height="150" rx="12" fill="#fdf4ff" stroke="#a21caf" stroke-width="2"/>
+  <text x="780" y="720" font-size="17" font-weight="bold" fill="#701a75">Model router</text>
+  <text x="780" y="748" font-size="13" fill="#334155">one model per job</text>
+  <text x="780" y="770" font-size="13" fill="#334155">Gemini Flash: write, fix, image</text>
+  <text x="780" y="792" font-size="13" fill="#334155">Gemini Pro: verify</text>
+  <text x="780" y="814" font-size="13" fill="#334155">optional: local Ollama</text>
+
+  <rect x="1150" y="690" width="290" height="150" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="1170" y="720" font-size="17" font-weight="bold" fill="#7f1d1d">Sentry</text>
+  <text x="1170" y="748" font-size="13" fill="#334155">traces across agents</text>
+  <text x="1170" y="770" font-size="13" fill="#334155">logs, secrets scrubbed</text>
+
+  <path d="M960 590 C 900 640, 400 640, 300 688" fill="none" stroke="#059669" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#d)"/>
+  <path d="M1000 590 C 960 650, 640 650, 600 688" fill="none" stroke="#059669" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#d)"/>
+  <line x1="1185" y1="590" x2="980" y2="688" stroke="#a21caf" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#g)"/>
+
+  <rect x="30" y="890" width="1440" height="70" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+  <line x1="60" y1="925" x2="110" y2="925" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="120" y="930" font-size="13" fill="#334155">message (numbers = order)</text>
+  <line x1="330" y1="925" x2="380" y2="925" stroke="#059669" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#d)"/>
+  <text x="390" y="930" font-size="13" fill="#334155">reads data</text>
+  <line x1="500" y1="925" x2="550" y2="925" stroke="#a21caf" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#g)"/>
+  <text x="560" y="930" font-size="13" fill="#334155">model calls</text>
+  <text x="690" y="930" font-size="13" fill="#0f766e" font-weight="bold">teal = deterministic code</text>
+  <text x="900" y="930" font-size="13" fill="#334155">purple = private agents</text>
+</svg>

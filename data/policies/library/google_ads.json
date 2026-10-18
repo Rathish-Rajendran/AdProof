@@ -1,0 +1,135 @@
+[
+  {
+    "policy_id": "GADS_MISLEADING_AD_DESIGN_AD_LANDING_INCONSISTENCY_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Misrepresentation — misleading ad design",
+    "source_url": "https://support.google.com/adspolicy/answer/6020955",
+    "section": "Misleading ad design",
+    "excerpts": [
+      "Inconsistencies between the ad and the landing page/app."
+    ],
+    "retrieved_at": "2026-10-18T08:14:31Z",
+    "content_sha256": "23c1ab777091cb6862cf5b0ae98f0fad1a8d0b0cb511d2ddd97ec7526a9bcafc",
+    "summary": "Google identifies ad-to-destination inconsistencies as a misleading-ad-design concern. Paraphrase.",
+    "topics": ["misleading representation", "destination consistency"],
+    "claim_types": ["objective"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "GADS_UNRELIABLE_CLAIMS_INACCURATE_CLAIM_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Misrepresentation — unreliable claims",
+    "source_url": "https://support.google.com/adspolicy/answer/6020955",
+    "section": "Unreliable claims",
+    "excerpts": [
+      "Making inaccurate claims or claims that entice the user with an improbable result (even if this result is possible) as the likely outcome a user can expect is not allowed."
+    ],
+    "retrieved_at": "2026-10-18T08:14:31Z",
+    "content_sha256": "23c1ab777091cb6862cf5b0ae98f0fad1a8d0b0cb511d2ddd97ec7526a9bcafc",
+    "summary": "Google prohibits inaccurate claims and certain improbable-result claims. Paraphrase.",
+    "topics": ["unreliable claims"],
+    "claim_types": ["objective", "performance"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "GADS_DISHONEST_PRICING_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Misrepresentation — dishonest pricing practices",
+    "source_url": "https://support.google.com/adspolicy/answer/6020955",
+    "section": "Dishonest pricing practices",
+    "excerpts": [
+      "Employing pricing practices that create a false or misleading impression of the cost of a product or service, leading to inflated or unexpected charges is not allowed."
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "23c1ab777091cb6862cf5b0ae98f0fad1a8d0b0cb511d2ddd97ec7526a9bcafc",
+    "summary": "Google prohibits pricing practices that mislead consumers about product or service costs. Paraphrase.",
+    "topics": ["dishonest pricing", "misrepresentation"],
+    "claim_types": ["price", "discount"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "GADS_EDITORIAL_CAPITALIZATION_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Editorial — capitalization",
+    "source_url": "https://support.google.com/adspolicy/answer/6021546",
+    "section": "Capitalization",
+    "excerpts": [
+      "The following is not allowed: Capitalization that isn't used correctly or for its intended purpose"
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "41240c38eced4c3511699affb12ad0e9512c2ec65972c3109445ad6f1db313d3",
+    "summary": "Google disallows capitalization that is not used correctly or for its intended purpose. Paraphrase.",
+    "topics": ["editorial", "capitalization"],
+    "claim_types": ["ad_format"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "GADS_DESTINATION_MISMATCH_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Destination requirements — destination mismatch",
+    "source_url": "https://support.google.com/adspolicy/answer/6368661",
+    "section": "Destination mismatch",
+    "excerpts": [
+      "The following would lead to disapproval for Destination mismatch: The domain or domain extension in the display URL doesn’t match the final and mobile URLs where users are taken to"
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "897bf2c69eba5c7566b35c3ab48cd2db36094a00ac7929862f79a3e27411b31e",
+    "summary": "Google requires an ad to accurately represent the destination users reach after clicking. Paraphrase.",
+    "topics": ["destination", "misrepresentation"],
+    "claim_types": ["landing_page"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "GADS_HEALTHCARE_PRESCRIPTION_REQUIREMENTS_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Healthcare and medicines — prescription requirements",
+    "source_url": "https://support.google.com/adspolicy/answer/176031",
+    "section": "Unauthorized pharmacies",
+    "excerpts": [
+      "Offering prescription drugs without a prescription is not allowed."
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "c700fa429d966dea9124971015f56514ff4a75a681ec6c817cc15ecaa660975a",
+    "summary": "Google disallows offering prescription drugs without a prescription. Paraphrase.",
+    "topics": ["healthcare", "prescription drugs"],
+    "claim_types": ["healthcare"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "GADS_PERSONALIZED_ADVERTISING_MINORS_REFERENCE",
+    "issuer": "Google",
+    "platform": "google_ads",
+    "jurisdiction": "US",
+    "title": "Google Ads Personalized advertising — users under 18",
+    "source_url": "https://support.google.com/adspolicy/answer/143465",
+    "section": "Targeting restrictions",
+    "excerpts": [
+      "Users under the age of 18 are not eligible for personalized advertising of any kind, including serving based on Predefined Google Audiences."
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "7dd244b45af3eeb09ff8b87f74979fd5d24087c7a9b5622d147d3541ab561ba4",
+    "summary": "Google excludes users under 18 from personalized advertising of any kind. Paraphrase.",
+    "topics": ["personalized advertising", "minors", "audience targeting"],
+    "claim_types": ["audience"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  }
+]
