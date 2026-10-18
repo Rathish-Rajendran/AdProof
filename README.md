@@ -114,7 +114,7 @@ uv run python -m adproof.generate "Generate a Google Ads ad for AeroBeat AB-01 h
 bash scripts/run_all.sh
 ```
 
-The non-offline generation command uses the configured model. `--offline` exercises the in-process workflow with fake models and no key. The agent script starts the four local agents and remains in the foreground.
+The non-offline generation command uses the configured model. `--offline` is a smoke test of the in-process workflow with fake models and no key; its scripted draft intentionally includes an unsupported "waterproof" claim, so expect `needs_review: true`. The agent script starts the four local agents and remains in the foreground.
 
 ## Use it from ASI:One
 
@@ -133,8 +133,8 @@ report <audit_id>
 
 Try these generation prompts:
 
-- `generate Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults` → expected ready result.
-- `generate Generate an ad for AB-02 Pro for teens` → expected needs review.
+- `generate a Google Ads ad for AeroBeat AB-01 headphones for US adults` → expected ready result.
+- `generate a Google Ads ad for AeroBeat AB-02 Pro earbuds for teens` → expected needs review.
 
 ## Docker
 
