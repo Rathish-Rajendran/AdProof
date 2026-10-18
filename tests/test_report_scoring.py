@@ -210,9 +210,7 @@ def test_supported_pass_is_ready_with_exact_summary_and_claim_provenance():
         {
             "claim": "Battery life is up to 30 hours with ANC off.",
             "quote": "Battery life is up to 30 hours with active noise cancellation (ANC) off",
-            "source": (
-                "AeroBeat AB-01 headphones product page › AeroBeat AB-01 headphones / Battery"
-            ),
+            "source": ("AeroBeat AB-01 headphones product page › Battery"),
         }
     ]
     assert result["compliance"] == "OK"

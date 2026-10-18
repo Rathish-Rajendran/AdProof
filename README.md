@@ -175,7 +175,7 @@ Healthy output lists `HEALTHY` for all four roles. Stop the foreground superviso
      "summary": "Ready to run: all 1 claims are backed by company data; 2 Google Ads rules passed.",
      "ad": {"platform": "google_ads", "headlines": ["AeroBeat AB-01"], "descriptions": ["Up to 30 hours with ANC off."], "final_url": "https://aerobeat.example/products/ab-01"},
      "compliance": "OK",
-     "claims": [{"claim": "Battery life is up to 30 hours with ANC off.", "quote": "Battery life is up to 30 hours with active noise cancellation (ANC) off", "source": "AeroBeat AB-01 headphones product page › AeroBeat AB-01 headphones / Battery"}]
+     "claims": [{"claim": "Battery life is up to 30 hours with ANC off.", "quote": "Battery life is up to 30 hours with active noise cancellation (ANC) off", "source": "AeroBeat AB-01 headphones product page › Battery"}]
    }
    ```
 

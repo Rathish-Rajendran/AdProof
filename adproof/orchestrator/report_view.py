@@ -382,6 +382,9 @@ def _corpus_source(evidence: Evidence) -> str:
     heading = matching_chunk.heading
     if heading.startswith(document.title):
         heading = heading[len(document.title) :].strip(" /›—-")
+    parts = heading.split(" / ")
+    if len(parts) > 1:
+        heading = " / ".join(parts[1:])
     return f"{document.title} › {heading}" if heading else document.title
 
 
