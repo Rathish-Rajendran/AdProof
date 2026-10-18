@@ -277,32 +277,25 @@ async def test_offline_generation_workflow_repairs_and_rechecks():
     assert report.original_audit.decision == Decision.FIX_REQUIRED
     assert report.revised_audit.decision == Decision.PASS
     assert report.repair_verified is True
-    assert summary["request"]["platform"] == "google_ads"
-    assert summary["request"]["prompt"] == prompt
-    assert "product_query" not in summary["request"]
-    assert summary["generated_ad"]["final_url"] == PAGE_URL
+    assert summary["needs_review"] is False
+    assert summary["compliance"] == "OK"
+    assert summary["ad"] == {
+        "platform": "google_ads",
+        "ad_copy": report.repair_proposal.repaired_copy,
+        "final_url": PAGE_URL,
+    }
+    assert summary["summary"].startswith(
+        f"The first draft had {len(report.original_audit.issues)} issues; "
+        "it was fixed once and re-checked. Ready to run: "
+    )
     assert list(summary) == [
         "audit_id",
-        "verdict",
+        "needs_review",
         "confidence",
         "summary",
-        "request",
-        "generated_ad",
-        "original_check",
-        "fix",
-        "recheck",
-        "final",
-        "claims",
+        "ad",
         "compliance",
-        "checks_failed",
+        "claims",
     ]
-    assert set(summary) >= {
-        "audit_id",
-        "request",
-        "generated_ad",
-        "original_check",
-        "fix",
-        "recheck",
-        "final",
-    }
-    assert summary["final"]["repair_verified"] is True
+    assert summary["claims"]
+    assert all("#" not in claim["source"] for claim in summary["claims"])

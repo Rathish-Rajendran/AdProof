@@ -16,10 +16,14 @@ from adproof.domain.models import (
     Decision,
     Evidence,
     ExecutionMode,
+    Issue,
+    IssueAction,
+    IssueCategory,
     Phase,
     PolicyCheck,
     PolicyEnforcement,
     PolicyReviewStatus,
+    Severity,
     TypedError,
     TypedErrorCode,
     VerificationResult,
@@ -170,35 +174,63 @@ def _report(
             if with_generation
             else None
         ),
-        generated_ad={"headlines": ["AeroBeat AB-01"]} if with_generation else None,
+        generated_ad=(
+            {
+                "headlines": ["AeroBeat AB-01"],
+                "final_url": "https://aerobeat.example/products/ab-01",
+                "sources": ["aerobeat-ab01-product#1"],
+            }
+            if with_generation
+            else None
+        ),
     )
 
 
 def test_supported_pass_is_ready_with_exact_summary_and_claim_provenance():
     report = _report(
-        claims=[_claim()],
+        claims=[_claim(text="Battery life is up to 30 hours with ANC off.")],
         policies=[_policy_check()],
-        evidence=[_evidence()],
+        evidence=[
+            _evidence(
+                excerpt="Battery life is up to 30 hours with active noise cancellation (ANC) off"
+            )
+        ],
+        with_generation=True,
     )
 
     result = report_summary(report)
 
     assert READY_THRESHOLD == 95
-    assert result["verdict"] == "READY"
+    assert result["needs_review"] is False
     assert result["confidence"] == 100
     assert result["summary"] == (
-        "All 1 claims are backed by aerobeat-ab01-product; 1 policy rules checked, none broken."
+        "Ready to run: all 1 claims are backed by company data; 1 Google Ads rules passed."
     )
     assert result["claims"] == [
         {
-            "claim": "Up to 30 hours with ANC off.",
-            "result": "SUPPORTED",
-            "source": "aerobeat-ab01-product#1",
-            "quote": "Up to 30 hours of battery life with ANC off.",
+            "claim": "Battery life is up to 30 hours with ANC off.",
+            "quote": "Battery life is up to 30 hours with active noise cancellation (ANC) off",
+            "source": (
+                "AeroBeat AB-01 headphones product page › AeroBeat AB-01 headphones / Battery"
+            ),
         }
     ]
-    assert result["compliance"] == [{"policy": POLICY_TITLE, "rule_id": POLICY_ID, "result": "OK"}]
-    assert result["checks_failed"] == []
+    assert result["compliance"] == "OK"
+    assert result["ad"] == {
+        "platform": "google_ads",
+        "headlines": ["AeroBeat AB-01"],
+        "final_url": "https://aerobeat.example/products/ab-01",
+    }
+    assert list(result) == [
+        "audit_id",
+        "needs_review",
+        "confidence",
+        "summary",
+        "ad",
+        "compliance",
+        "claims",
+    ]
+    assert "#" not in json.dumps(result, ensure_ascii=False)
 
 
 def test_insufficient_claim_fails_and_five_check_confidence_formula_is_80():
@@ -208,17 +240,59 @@ def test_insufficient_claim_fails_and_five_check_confidence_formula_is_80():
 
     result = report_summary(report)
 
-    assert result["verdict"] == "NEEDS_HUMAN_APPROVAL"
-    assert result["checks_failed"][0] == {
-        "check": "claim: Up to 30 hours with ANC off.",
-        "reason": "No evidence establishes this claim.",
-    }
+    assert result["needs_review"] is True
     assert result["confidence"] == 86
+    assert result["compliance"] == [
+        'Claim "Up to 30 hours with ANC off." is not backed by company data: '
+        "No evidence establishes this claim."
+    ]
     five_checks = [
         {"name": "claim: unsupported", "passed": False, "reason": "No evidence."},
         *[{"name": f"check-{index}", "passed": True, "reason": None} for index in range(4)],
     ]
     assert _confidence(five_checks) == 80
+
+
+def test_contradicted_claim_is_a_plain_language_compliance_item():
+    claim = _claim(
+        ClaimStatus.CONTRADICTED,
+        text="AeroBeat AB-01 headphones are completely waterproof.",
+    ).model_copy(update={"explanation": "The product page says it is not waterproof."})
+    issue = Issue(
+        id="issue-1",
+        claim_id=claim.id,
+        category=IssueCategory.AD_LANDING_PAGE_CONTRADICTION,
+        severity=Severity.HIGH,
+        explanation="The product page says it is not waterproof.",
+        action=IssueAction.FIX,
+        policy_reference="landing_page_consistency",
+    )
+    result = report_summary(
+        _report(
+            Decision.FIX_REQUIRED,
+            claims=[claim],
+            evidence=[_evidence(excerpt="It is not waterproof and should not be submerged.")],
+            issues=[issue],
+        )
+    )
+
+    assert result["compliance"] == [
+        'Claim "AeroBeat AB-01 headphones are completely waterproof." is contradicted: '
+        "The product page says it is not waterproof."
+    ]
+    assert result["claims"] == []
+
+
+def test_audit_ad_uses_landing_page_evidence_url():
+    landing_page = _evidence(excerpt="Product page evidence.").model_copy(
+        update={
+            "source_type": "landing_page",
+            "source_url": "https://aerobeat.example/landing",
+        }
+    )
+    result = report_summary(_report(evidence=[landing_page]))
+
+    assert result["ad"]["final_url"] == "https://aerobeat.example/landing"
 
 
 def test_blocked_verdict_uses_first_active_policy_violation():
@@ -234,9 +308,9 @@ def test_blocked_verdict_uses_first_active_policy_violation():
 
     result = report_summary(report)
 
-    assert result["verdict"] == "BLOCKED"
+    assert result["needs_review"] is True
     assert result["summary"] == f"Blocked: {POLICY_TITLE}."
-    assert result["compliance"][0]["result"] == "VIOLATION"
+    assert result["compliance"] == [f"Breaks {POLICY_TITLE}"]
 
 
 def test_minors_processing_error_prevents_ready_and_names_scope_failure():
@@ -255,11 +329,8 @@ def test_minors_processing_error_prevents_ready_and_names_scope_failure():
         )
     )
 
-    assert result["verdict"] == "NEEDS_HUMAN_APPROVAL"
-    failed = next(
-        item for item in result["checks_failed"] if item["check"] == "no_processing_errors"
-    )
-    assert failed["reason"] == minors_error.message
+    assert result["needs_review"] is True
+    assert result["compliance"] == [minors_error.message]
 
 
 def test_report_processing_error_prevents_ready_even_when_audit_passes():
@@ -269,34 +340,27 @@ def test_report_processing_error_prevents_ready_even_when_audit_passes():
     )
     result = report_summary(_report(Decision.PASS, report_errors=[error]))
 
-    assert result["verdict"] == "NEEDS_HUMAN_APPROVAL"
-    assert any(
-        item["check"] == "no_processing_errors" and item["reason"] == error.message
-        for item in result["checks_failed"]
-    )
+    assert result["needs_review"] is True
+    assert result["compliance"] == [error.message]
 
 
 def test_generation_failure_has_scored_shape_and_zero_confidence():
     rendered = render_generation_failure("Generate an ad for AB-01", "Model unavailable.")
     result = json.loads(rendered.removeprefix("```json\n").removesuffix("\n```"))
 
-    assert result["verdict"] == "NEEDS_HUMAN_APPROVAL"
+    assert result["needs_review"] is True
     assert result["confidence"] == 0
-    assert result["summary"] == (
-        "1 of 1 checks failed (verification: Model unavailable.). Human approval needed."
-    )
+    assert result["summary"] == "Needs review: Model unavailable."
+    assert result["ad"] is None
+    assert result["compliance"] == ["Model unavailable."]
     assert list(result) == [
         "audit_id",
-        "verdict",
+        "needs_review",
         "confidence",
         "summary",
-        "request",
-        "original_check",
-        "final",
-        "claims",
+        "ad",
         "compliance",
-        "checks_failed",
-        "notes",
+        "claims",
     ]
 
 
@@ -314,14 +378,10 @@ def test_claim_quote_is_truncated_to_200_characters_and_shape_key_order():
     assert result["claims"][0]["quote"].endswith("…")
     assert list(result) == [
         "audit_id",
-        "verdict",
+        "needs_review",
         "confidence",
         "summary",
-        "request",
-        "generated_ad",
-        "original_check",
-        "final",
-        "claims",
+        "ad",
         "compliance",
-        "checks_failed",
+        "claims",
     ]

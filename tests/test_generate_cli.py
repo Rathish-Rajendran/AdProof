@@ -18,34 +18,21 @@ def test_empty_prompt_returns_a_fenced_json_error(capsys):
     assert asyncio.run(generate._run("   ", offline=False)) == 0
     result = _json_reply(capsys.readouterr().out)
 
-    assert result["request"] == {
-        "prompt": "",
-        "platform": "google_ads",
-        "jurisdiction": "US",
-        "language": "en",
-        "audience": "adults",
-    }
     assert list(result) == [
         "audit_id",
-        "verdict",
+        "needs_review",
         "confidence",
         "summary",
-        "request",
-        "original_check",
-        "final",
-        "claims",
+        "ad",
         "compliance",
-        "checks_failed",
-        "notes",
+        "claims",
     ]
-    assert result["verdict"] == "NEEDS_HUMAN_APPROVAL"
+    assert result["needs_review"] is True
     assert result["confidence"] == 0
-    assert result["final"] == {
-        "decision": "HUMAN_REVIEW",
-        "ad_copy": None,
-        "repair_verified": False,
-    }
-    assert "Usage:" in result["notes"][0]
+    assert result["ad"] is None
+    assert len(result["compliance"]) == 1
+    assert "Usage:" in result["compliance"][0]
+    assert result["summary"] == f"Needs review: {result['compliance'][0]}"
 
 
 def test_generator_failure_returns_a_fenced_json_error(monkeypatch, capsys):
@@ -77,37 +64,21 @@ def test_generator_failure_returns_a_fenced_json_error(monkeypatch, capsys):
     assert asyncio.run(generate._run("AeroBeat AB-01", offline=False)) == 0
     result = _json_reply(capsys.readouterr().out)
 
-    assert result["request"] == {
-        "prompt": "AeroBeat AB-01",
-        "platform": "google_ads",
-        "jurisdiction": "US",
-        "language": "en",
-        "audience": "adults",
-    }
     assert list(result) == [
         "audit_id",
-        "verdict",
+        "needs_review",
         "confidence",
         "summary",
-        "request",
-        "original_check",
-        "final",
-        "claims",
+        "ad",
         "compliance",
-        "checks_failed",
-        "notes",
+        "claims",
     ]
-    assert result["summary"] == (
-        "1 of 1 checks failed (verification: Model service unavailable.). Human approval needed."
-    )
-    assert result["final"]["decision"] == "HUMAN_REVIEW"
-    assert result["final"]["ad_copy"] is None
-    assert result["final"]["repair_verified"] is False
-    assert result["checks_failed"] == [
-        {"check": "verification", "reason": "Model service unavailable."}
-    ]
-    assert result["notes"] == [
+    assert result["needs_review"] is True
+    assert result["confidence"] == 0
+    assert result["ad"] is None
+    assert result["summary"] == "Needs review: Model service unavailable. (2 more)"
+    assert result["compliance"] == [
         "Model service unavailable.",
-        "Attempt 1: first deterministic violation",
-        "Attempt 2: second deterministic violation",
+        "first deterministic violation",
+        "second deterministic violation",
     ]
