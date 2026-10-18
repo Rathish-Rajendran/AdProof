@@ -1,6 +1,6 @@
 # AdProof
 
-AdProof generates ads from a company's own data, then independently verifies every claim and applicable platform policy. If the verifier requires a fix, AdProof makes at most one copy-only change and re-checks it before returning a scored JSON result. Nothing is auto-published; this is not legal advice or platform approval.
+AdProof checks ads (image or text) for compliance, fixes them when possible, and generates compliant new ads. Every result is independently verified against company data and platform policies and returned as scored JSON. Nothing is auto-published; this is not legal advice or platform approval.
 
 ## 1. Architecture
 
@@ -255,8 +255,10 @@ Open [ASI:One](https://asi1.ai). Select `adproof-orchestrator` in the **To:** bo
 
 | Input | What it does |
 |---|---|
+| Upload an ad image (optional caption) | Reads image text, checks claims and policies, and may suggest one fixed text replacement. |
+| `check <ad text>` | Checks text, attempts one copy-only fix when possible, and independently re-checks it. |
+| `generate <prompt>` | Generates a corpus-grounded ad, then independently preflights it. |
 | `help` or `?` | Lists supported commands and input forms. |
-| `generate <text>` | Generates a corpus-grounded ad, then independently preflights it. |
 | `demo aerobeat` | Audits the unsafe-copy demo and can attempt one copy-only repair. |
 | `demo aerobeat49` | Demonstrates that a copy repair cannot fix the `$49` shown in the image. |
 | `demo aerobeat correct` | Audits the already-correct AeroBeat demo. |
@@ -271,6 +273,8 @@ Open [ASI:One](https://asi1.ai). Select `adproof-orchestrator` in the **To:** bo
 
 Try these prompts:
 
+- Upload an AeroBeat AB-01 ad image, optionally captioned `AeroBeat AB-01 headphones` → image checks and a replacement-text suggestion when possible.
+- `check AeroBeat AB-01 headphones are completely waterproof. Get 48-hour battery life. Now $60—50% off!` → checks the claims and may repair unsupported copy once.
 - `generate a Google Ads ad for AeroBeat AB-01 headphones for US adults` → expected ready result (`needs_review: false`) for the current supported example.
 - `generate a Google Ads ad for AeroBeat AB-02 Pro earbuds for teens` → expected human review with a minors-scope note.
 

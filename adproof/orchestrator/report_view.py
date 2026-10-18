@@ -187,6 +187,12 @@ def _summary_text(
     audit: VerificationResult | None,
 ) -> str:
     if verdict == "READY":
+        if (
+            report.check_input_type == "image"
+            and report.repair_proposal is not None
+            and report.repair_verified
+        ):
+            return "Fixed once and re-checked: replace the image text with fixed_text."
         claims = audit.claims if audit is not None else []
         policy_count = (
             sum(
@@ -200,7 +206,11 @@ def _summary_text(
         )
         backing = (
             "company data"
-            if report.generation_request is not None or report.generated_ad is not None
+            if (
+                report.generation_request is not None
+                or report.generated_ad is not None
+                or report.check_input_type is not None
+            )
             else "the landing page"
         )
         platform = _platform_label(_platform(report))
@@ -257,6 +267,19 @@ def _platform_label(platform: str | None) -> str:
 
 
 def _ad_summary(report: AuditReport) -> dict[str, Any] | None:
+    if report.check_input_type == "image":
+        return {
+            "type": "image",
+            "detected_text": report.image_detected_text or "",
+            "fixed_text": (
+                report.repair_proposal.repaired_copy
+                if report.repair_proposal is not None
+                and report.repair_proposal.repaired_copy != report.original_candidate.ad_copy
+                else None
+            ),
+        }
+    if report.check_input_type == "text":
+        return {"type": "text", "ad_copy": _final_copy(report)}
     is_generation = report.generation_request is not None or report.generated_ad is not None
     if is_generation:
         if report.generated_ad is None or _final_audit(report) is None:

@@ -59,6 +59,7 @@ def test_parser_defaults_aliases_and_minors():
     assert parse_generation_request("Instagram AeroBeat").platform == "meta_ads"
     assert parse_generation_request("Meta AeroBeat").platform == "meta_ads"
     assert parse_generation_request("AB-01 for teens").audience == "minors"
+    assert parse_generation_request("AB-01 for minors").audience == "minors"
     assert parse_generation_request("AB-01 for students in high school").audience == "minors"
 
 

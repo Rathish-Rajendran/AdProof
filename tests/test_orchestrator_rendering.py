@@ -1,5 +1,7 @@
 import json
 
+from uagents_core.contrib.protocols.chat import StartSessionContent
+
 from adproof.domain.models import (
     AuditReport,
     Coverage,
@@ -23,6 +25,7 @@ from adproof.orchestrator.report_view import report_summary
 from agents.orchestrator.main import (
     _help_message,
     _render_report,
+    _start_session_metadata,
     _text_chunks,
     _welcome_message,
 )
@@ -289,7 +292,11 @@ def test_help_and_welcome_are_markdown_and_include_scope():
     help_message = _help_message()
 
     assert "## AdProof commands" in help_message
-    assert help_message.count("`generate <text>`") == 1
+    assert help_message.count("`generate <prompt>`") == 1
+    input_lines = help_message.splitlines()[1:4]
+    assert input_lines[0].startswith("- Upload an ad image")
+    assert input_lines[1].startswith("- `check <ad text>`")
+    assert input_lines[2].startswith("- `generate <prompt>`")
     assert "`demo aerobeat`" in help_message
     assert "`demo aerobeat49`" in help_message
     assert "`demo aerobeat correct`" in help_message
@@ -305,3 +312,9 @@ def test_help_and_welcome_are_markdown_and_include_scope():
     welcome_message = _welcome_message()
     assert "## Welcome to AdProof" in welcome_message
     assert welcome_message.endswith(help_message.splitlines()[-1])
+
+
+def test_start_session_advertises_image_attachments():
+    metadata = _start_session_metadata([StartSessionContent()])
+    assert metadata is not None
+    assert metadata.metadata == {"attachments": "true"}

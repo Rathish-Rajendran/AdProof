@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -8,6 +11,7 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit
 
 import sentry_sdk
 from uagents import Context, Model, Protocol
@@ -16,14 +20,20 @@ from uagents_core.contrib.protocols.chat import (
     ChatMessage,
     EndSessionContent,
     MetadataContent,
+    ResourceContent,
     StartSessionContent,
     TextContent,
     chat_protocol_spec,
 )
+from uagents_core.identity import Identity
+from uagents_core.storage import ExternalStorage
 
+from adproof.check_workflow import CheckWorkflowError, run_check_workflow
 from adproof.domain.models import AuditReport, CampaignInput, ExecutionMode
 from adproof.generator.workflow import run_generation_workflow
 from adproof.infrastructure.budget import ModelCallBudget
+from adproof.infrastructure.image import MAX_IMAGE_BYTES
+from adproof.infrastructure.safe_http import SafeHttpClient
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry, record_event
 from adproof.model_client import ModelClientError, build_model_client
@@ -115,10 +125,12 @@ def _help_message() -> str:
     return "\n".join(
         [
             "## AdProof commands",
+            "- Upload an ad image, optionally with caption text — check its visible claims against company data and policies.",
+            "- `check <ad text>` — Check text, attempt one copy-only fix, and independently re-check it.",
+            "- `generate <prompt>` — Generate and independently preflight a corpus-grounded text ad.",
             "- `demo aerobeat` — Audit the unsafe AeroBeat ad and attempt one copy-only repair.",
             "- `demo aerobeat49` — Show that a copy repair cannot fix the `$49` image.",
             "- `demo aerobeat correct` — Audit the already-correct AeroBeat ad.",
-            "- `generate <text>` — Generate and independently preflight a corpus-grounded text ad.",
             "- `example` — Show an example campaign input.",
             "- `status <audit_id>` — Show an audit's current state.",
             "- `report <audit_id>` — Show a saved audit report.",
@@ -139,6 +151,50 @@ def _welcome_message() -> str:
             _SCOPE_LINE,
         ]
     )
+
+
+def _attachment_metadata() -> MetadataContent:
+    return MetadataContent(metadata={"attachments": "true"})
+
+
+def _start_session_metadata(content: list[Any]) -> MetadataContent | None:
+    if any(isinstance(item, StartSessionContent) for item in content):
+        return _attachment_metadata()
+    return None
+
+
+async def _download_resource_image(
+    item: ResourceContent,
+    *,
+    identity: Identity,
+    http: SafeHttpClient,
+) -> bytes:
+    resource = item.resource[0] if isinstance(item.resource, list) else item.resource
+    if urlsplit(resource.uri).scheme == "https":
+        return (await http.fetch(resource.uri, max_bytes=MAX_IMAGE_BYTES)).content
+
+    try:
+        result = await asyncio.to_thread(
+            ExternalStorage(
+                identity=identity,
+                storage_url="https://agentverse.ai/v1/storage",
+            ).download,
+            str(item.resource_id),
+        )
+    except Exception as exc:
+        raise ValueError("uploaded image could not be downloaded") from exc
+    if result.get("mime_type") not in {"image/png", "image/jpeg"}:
+        raise ValueError("uploaded file must be a PNG or JPEG image")
+    contents = result.get("contents")
+    if not isinstance(contents, str) or len(contents) > ((MAX_IMAGE_BYTES + 2) // 3) * 4:
+        raise ValueError("uploaded image exceeds the 8 MiB limit")
+    try:
+        data = base64.b64decode(contents, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("uploaded image could not be decoded") from exc
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ValueError("uploaded image exceeds the 8 MiB limit")
+    return data
 
 
 def _safe_text_card_action(text: str):
@@ -239,6 +295,56 @@ def run() -> None:
         finally:
             await _owner_limiter.release(owner)
 
+    async def execute_check(
+        ad_text: str,
+        *,
+        image: bytes | None,
+        owner: str,
+        session_id: str,
+        ctx: Context,
+    ) -> AuditReport | None:
+        if not await _owner_limiter.acquire(owner):
+            return None
+        try:
+            gateway = UAgentsGateway(
+                context=ctx,
+                pending=pending,
+                verifier_address=addresses["verifier"],
+                remediator_address=addresses["remediator"],
+                generator_address=addresses["generator"],
+                budget=dependencies.budget,
+                execution_mode=ExecutionMode.LIVE.value,
+            )
+            catalog = root / "data/policies/catalog.json"
+            policies = {
+                "google_ads": PolicyEngine.from_files(
+                    catalog, root / "data/policies/packs/google_ads_us_electronics_v1.json"
+                ),
+                "meta_ads": PolicyEngine.from_files(
+                    catalog, root / "data/policies/packs/meta_ads_us_electronics_v1.json"
+                ),
+            }
+            report = await run_check_workflow(
+                ad_text,
+                index=CorpusIndex(),
+                model=build_model_client(settings, ModelCallBudget(40)),
+                settings=settings,
+                policies=policies,
+                image=image,
+                image_inspector=dependencies.inspector,
+                gateway=gateway,
+            )
+            dependencies.store.save_workflow(
+                audit_id=report.audit_id,
+                owner=owner,
+                session_id=session_id,
+                state=report.workflow_status.value,
+                payload={"report": report.model_dump(mode="json")},
+            )
+            return report
+        finally:
+            await _owner_limiter.release(owner)
+
     @agent.on_rest_get("/health", HealthResponse)
     async def health(ctx: Context) -> HealthResponse:
         return HealthResponse(status="ok")
@@ -282,10 +388,44 @@ def run() -> None:
             return
         lowered = text.casefold()
         result_card = None
+        reply_metadata = None
         if len(text.encode("utf-8")) > 16 * 1024:
             reply = "Message exceeds the 16 KiB intake limit."
-        elif any(isinstance(item, StartSessionContent) for item in message.content):
+        elif reply_metadata := _start_session_metadata(message.content):
             reply = _welcome_message()
+        elif resources := [item for item in message.content if isinstance(item, ResourceContent)]:
+            if len(resources) != 1:
+                reply = render_generation_failure(text, "Upload one ad image at a time.")
+            else:
+                try:
+                    image_bytes = await _download_resource_image(
+                        resources[0],
+                        identity=Identity.from_seed(seeds["orchestrator"], 0),
+                        http=dependencies.http,
+                    )
+                    report = await execute_check(
+                        text,
+                        image=image_bytes,
+                        owner=sender,
+                        session_id=session_id,
+                        ctx=ctx,
+                    )
+                    reply = (
+                        render_report(report)
+                        if report is not None
+                        else render_generation_failure(
+                            text, "The per-owner concurrent-check limit is currently full."
+                        )
+                    )
+                except CheckWorkflowError as exc:
+                    reply = render_generation_failure(text, str(exc))
+                except ModelClientError as exc:
+                    reply = render_generation_failure(text, exc.error.message)
+                except Exception:
+                    record_event("image_check_failed", role="orchestrator")
+                    reply = render_generation_failure(
+                        text, "Image upload could not be processed safely."
+                    )
         elif (
             lowered in {"probe delayed", "probe timeout"}
             and os.getenv("ADPROOF_TRANSPORT_PROBE") == "1"
@@ -322,6 +462,33 @@ def run() -> None:
                     reply = f"specialist_error={result.value}; intake_session={ctx.session}"
         elif lowered in {"help", "?"}:
             reply = _help_message()
+        elif lowered == "check" or lowered.startswith("check "):
+            ad_text = text[len("check") :].strip()
+            if not ad_text:
+                reply = render_generation_failure(text, "Usage: check <ad text>.")
+            else:
+                try:
+                    report = await execute_check(
+                        ad_text,
+                        image=None,
+                        owner=sender,
+                        session_id=session_id,
+                        ctx=ctx,
+                    )
+                    reply = (
+                        render_report(report)
+                        if report is not None
+                        else render_generation_failure(
+                            ad_text, "The per-owner concurrent-check limit is currently full."
+                        )
+                    )
+                except CheckWorkflowError as exc:
+                    reply = render_generation_failure(ad_text, str(exc))
+                except ModelClientError as exc:
+                    reply = render_generation_failure(ad_text, exc.error.message)
+                except Exception:
+                    record_event("ad_check_failed", role="orchestrator")
+                    reply = render_generation_failure(ad_text, "Ad check could not be processed.")
         elif lowered == "example":
             example_path = root / "schemas/examples/CampaignInput.json"
             reply = "```json\n" + example_path.read_text(encoding="utf-8").strip() + "\n```"
@@ -445,7 +612,7 @@ def run() -> None:
             except Exception as exc:
                 record_event("audit_failed", role="orchestrator", result=type(exc).__name__)
                 reply = f"Request could not be processed ({type(exc).__name__}). Send `help` for accepted inputs."
-        await _send_terminal(ctx, sender, reply, card=result_card)
+        await _send_terminal(ctx, sender, reply, card=result_card, metadata=reply_metadata)
         dependencies.store.complete_chat_message(
             sender=sender,
             session_id=session_id,
@@ -458,12 +625,21 @@ def run() -> None:
     agent.run()
 
 
-async def _send_terminal(ctx: Context, sender: str, reply: str, *, card: Any | None = None) -> None:
+async def _send_terminal(
+    ctx: Context,
+    sender: str,
+    reply: str,
+    *,
+    card: Any | None = None,
+    metadata: MetadataContent | None = None,
+) -> None:
     chunks = _text_chunks(reply)
     for chunk in chunks[:-1]:
         content = [TextContent(type="text", text=chunk)] if chunk else []
         await ctx.send(sender, ChatMessage(content=content))
     content = [TextContent(type="text", text=chunks[-1])] if chunks[-1] else []
+    if metadata is not None:
+        content.insert(0, metadata)
     if card is not None:
         content.append(card)
     content.append(EndSessionContent())

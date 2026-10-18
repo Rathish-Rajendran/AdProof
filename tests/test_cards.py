@@ -39,7 +39,7 @@ from adproof.orchestrator.cards import (
     handle_card_action,
 )
 from adproof.orchestrator.limits import OwnerAuditLimiter
-from agents.orchestrator.main import _send_terminal
+from agents.orchestrator.main import _attachment_metadata, _send_terminal
 
 
 def _report() -> AuditReport:
@@ -249,6 +249,29 @@ async def test_reply_sends_plain_text_then_card_and_ends_session(tmp_path):
     assert isinstance(content[0], TextContent)
     assert content[0].text == "Audit report"
     assert isinstance(content[1], MetadataContent)
+    assert isinstance(content[2], EndSessionContent)
+
+
+@pytest.mark.asyncio
+async def test_start_session_reply_includes_attachment_metadata():
+    class Context:
+        sent = []
+
+        async def send(self, sender, message):
+            self.sent.append((sender, message))
+
+    ctx = Context()
+    await _send_terminal(
+        ctx,
+        "recipient",
+        "Welcome",
+        metadata=_attachment_metadata(),
+    )
+
+    content = ctx.sent[0][1].content
+    assert isinstance(content[0], MetadataContent)
+    assert content[0].metadata == {"attachments": "true"}
+    assert isinstance(content[1], TextContent)
     assert isinstance(content[2], EndSessionContent)
 
 

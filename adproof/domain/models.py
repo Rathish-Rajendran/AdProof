@@ -408,6 +408,8 @@ class AuditReport(StrictModel):
     timings: dict[str, float] = Field(default_factory=dict)
     generation_request: dict[str, Any] | None = None
     generated_ad: dict[str, Any] | None = None
+    check_input_type: str | None = None
+    image_detected_text: str | None = None
 
 
 class ReportSelection(StrictModel):

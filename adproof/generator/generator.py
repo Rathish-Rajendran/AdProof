@@ -13,7 +13,7 @@ from adproof.infrastructure.numbers import number_tokens
 from adproof.model_client import ModelClient, ModelClientError
 
 MINOR_TERMS = re.compile(
-    r"\b(?:teen|teens|kids|children|child|under\s+18|students\s+in\s+high\s+school)\b",
+    r"\b(?:minor|minors|teen|teens|kids|children|child|under\s+18|students\s+in\s+high\s+school)\b",
     re.IGNORECASE,
 )
 META_TERMS = re.compile(r"\b(?:meta|facebook|instagram)\b", re.IGNORECASE)

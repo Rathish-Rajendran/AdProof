@@ -12,7 +12,6 @@ from adproof.domain.models import (
     ExecutionMode,
     InspectionStatus,
     Phase,
-    RepairRequest,
     TypedError,
     VerificationRequest,
     WorkflowStatus,
@@ -21,8 +20,8 @@ from adproof.generator.generator import GenerationTask, generate_ad
 from adproof.infrastructure.safe_http import SafeHttpClient
 from adproof.infrastructure.settings import Settings
 from adproof.model_client import ModelClient, ModelClientError
-from adproof.remediator.remediator import remediate_copy
-from adproof.verifier.verifier import VerificationDependencies, verify_campaign
+from adproof.verifier.verifier import VerificationDependencies
+from adproof.workflow_cycle import verify_with_one_repair
 
 
 async def run_generation_workflow(
@@ -105,83 +104,21 @@ async def run_generation_workflow(
         corpus_document_id=landing_page.doc_id,
         deadline=deadline,
     )
-    original = (
-        await gateway.verify(original_request)
-        if gateway
-        else await verify_campaign(original_request, verification)
+    cycle = await verify_with_one_repair(
+        candidate,
+        original_request,
+        verification=verification,
+        model=model,
+        gateway=gateway,
     )
-    if isinstance(original, TypedError):
-        raise ModelClientError(original)
-    repair_result = None
-    revised_candidate = None
-    revised = None
-    selected_candidate_id = candidate_id
-    final_decision = original.decision
-    repair_verified = False
-    errors = list(original.errors)
-    if original.decision == Decision.FIX_REQUIRED and original.issues:
-        repaired_id = f"candidate-{uuid.uuid4().hex[:12]}"
-        repair_request = RepairRequest(
-            audit_id=audit_id,
-            request_id=uuid.uuid4().hex,
-            campaign_id=campaign_id,
-            original_candidate_id=candidate_id,
-            candidate_id=repaired_id,
-            ad_copy=ad_copy,
-            issues=original.issues,
-            claims=original.claims,
-            evidence=original.evidence,
-            deadline=deadline,
-        )
-        repair_result = (
-            await gateway.repair(repair_request)
-            if gateway
-            else await remediate_copy(
-                audit_id=audit_id,
-                candidate_id=candidate_id,
-                ad_copy=ad_copy,
-                issues=original.issues,
-                claims=original.claims,
-                evidence=original.evidence,
-                model=model,
-                deadline=deadline,
-            )
-        )
-        if isinstance(repair_result, TypedError):
-            raise ModelClientError(repair_result)
-        errors.extend(repair_result.errors)
-        revised_candidate = candidate.model_copy(
-            update={
-                "candidate_id": repaired_id,
-                "creative_version": 2,
-                "phase": Phase.REPAIRED,
-                "ad_copy": repair_result.repaired_copy,
-            }
-        )
-        revised_request = original_request.model_copy(
-            update={
-                "candidate_id": repaired_id,
-                "creative_version": 2,
-                "phase": Phase.REPAIRED,
-                "ad_copy": repair_result.repaired_copy,
-                "request_id": uuid.uuid4().hex,
-            }
-        )
-        revised = (
-            await gateway.verify(revised_request)
-            if gateway
-            else await verify_campaign(revised_request, verification)
-        )
-        if isinstance(revised, TypedError):
-            raise ModelClientError(revised)
-        errors.extend(revised.errors)
-        selected_candidate_id = repaired_id
-        final_decision = revised.decision
-        repair_verified = (
-            revised.decision == Decision.PASS
-            and repair_result.repaired_copy != ad_copy
-            and not repair_result.errors
-        )
+    original = cycle.original
+    repair_result = cycle.repair
+    revised_candidate = cycle.revised_candidate
+    revised = cycle.revised
+    selected_candidate_id = cycle.selected_candidate_id
+    final_decision = cycle.final_decision
+    repair_verified = cycle.repair_verified
+    errors = cycle.errors
 
     decision_basis = (
         "Generated text was independently checked against the company corpus."

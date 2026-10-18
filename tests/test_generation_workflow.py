@@ -1,15 +1,23 @@
+import base64
+import json
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+from adproof.check_workflow import CheckWorkflowError, run_check_workflow
 from adproof.domain.models import (
     CampaignContext,
     ClaimSource,
     ClaimStatus,
     ClaimType,
+    CoverageStatus,
     Decision,
+    InspectionResult,
     InspectionStatus,
+    Observation,
+    ObservationKind,
     Phase,
     VerificationRequest,
 )
@@ -18,9 +26,14 @@ from adproof.generator.generator import GenerationResult
 from adproof.generator.workflow import run_generation_workflow
 from adproof.infrastructure.settings import Settings
 from adproof.model_client import FakeModelClient
-from adproof.orchestrator.report_view import report_summary
+from adproof.orchestrator.report_view import (
+    render_generation_failure,
+    render_report,
+    report_summary,
+)
 from adproof.rag.chunker import CorpusChunk, CorpusDocument
 from adproof.rag.index import CorpusIndex
+from adproof.remediator.remediator import _RepairOutput
 from adproof.transport.models import SpecialistOperation, SpecialistResult, validate_result_shape
 from adproof.verifier.policy import PolicyEngine
 from adproof.verifier.verifier import (
@@ -378,6 +391,15 @@ async def test_offline_generation_workflow_repairs_and_rechecks():
     assert report.repair_proposal is not None
     assert report.revised_candidate is not None
     assert report.revised_audit is not None
+    assert list(report_summary(report)) == [
+        "audit_id",
+        "needs_review",
+        "confidence",
+        "summary",
+        "ad",
+        "compliance",
+        "claims",
+    ]
     generation_result = GenerationResult(
         request=report.generation_request,
         generated_ad=report.generated_ad,
@@ -460,3 +482,336 @@ async def test_offline_generation_workflow_repairs_and_rechecks():
     ]
     assert summary["claims"]
     assert all("#" not in claim["source"] for claim in summary["claims"])
+
+
+def _check_model(
+    *,
+    initial_claims,
+    initial_assessments,
+    repaired_copy: str | None = None,
+    final_claims=None,
+    final_assessments=None,
+) -> FakeModelClient:
+    responses = [
+        _ClaimExtraction(claims=initial_claims),
+        _AssessmentOutput(assessments=initial_assessments),
+    ]
+    if repaired_copy is not None:
+        responses.extend(
+            [
+                _RepairOutput(
+                    repaired_copy=repaired_copy,
+                    changes=[],
+                    unresolved_issue_ids=[],
+                ),
+                _ClaimExtraction(claims=final_claims or []),
+                _AssessmentOutput(assessments=final_assessments or []),
+            ]
+        )
+    return FakeModelClient(responses, model_version="fake-check-model")
+
+
+def _text_claim(text: str, *, source=ClaimSource.AD_TEXT, observation_id=None):
+    return _ExtractedClaim(
+        claim=text,
+        source=source,
+        claim_type=ClaimType.OTHER_OBJECTIVE,
+        observation_id=observation_id,
+    )
+
+
+def _assessment(status: ClaimStatus, quote: str) -> _Assessment:
+    return _Assessment(
+        claim_id="claim-1",
+        status=status,
+        source_index=1,
+        quote=quote,
+        explanation="The product page directly supports or contradicts this claim.",
+    )
+
+
+def _validate_check_payloads(report):
+    payloads = [
+        (
+            report.original_audit,
+            SpecialistOperation.VERIFY,
+            "ORIGINAL",
+            report.original_candidate.candidate_id,
+        ),
+    ]
+    if report.repair_proposal:
+        payloads.append(
+            (
+                report.repair_proposal,
+                SpecialistOperation.REPAIR,
+                "REPAIR",
+                report.revised_candidate.candidate_id,
+            )
+        )
+    if report.revised_audit:
+        payloads.append(
+            (
+                report.revised_audit,
+                SpecialistOperation.VERIFY,
+                "REPAIRED",
+                report.revised_candidate.candidate_id,
+            )
+        )
+    for index, (payload, operation, phase, candidate_id) in enumerate(payloads):
+        validate_result_shape(
+            SpecialistResult(
+                schema_version="1.0",
+                audit_id=report.audit_id,
+                task_id=f"check-{operation.value}-{index}",
+                request_id=f"check-request-{index}",
+                campaign_id=report.original_candidate.campaign_id,
+                candidate_id=candidate_id,
+                creative_version=1 if phase == "ORIGINAL" else 2,
+                phase=phase,
+                operation=operation,
+                attempt=1,
+                execution_mode="MOCK",
+                payload_json=payload.model_dump_json(),
+            )
+        )
+
+
+def _parse_rendered_report(rendered: str):
+    return json.loads(rendered.removeprefix("```json\n").removesuffix("\n```"))
+
+
+@pytest.mark.asyncio
+async def test_text_check_repairs_once_rechecks_and_returns_compact_shape():
+    index = FakeCorpusIndex()
+    model = _check_model(
+        initial_claims=[_text_claim("completely waterproof")],
+        initial_assessments=[_assessment(ClaimStatus.CONTRADICTED, "not waterproof")],
+        repaired_copy="AeroBeat AB-01 is splash-resistant for everyday use.",
+        final_claims=[_text_claim("splash-resistant for everyday use")],
+        final_assessments=[_assessment(ClaimStatus.SUPPORTED, "splash-resistant for everyday use")],
+    )
+    report = await run_check_workflow(
+        "AeroBeat AB-01 headphones are completely waterproof; take 50% off.",
+        index=index,
+        model=model,
+        settings=Settings(),
+        policies={"google_ads": _policy(), "meta_ads": _policy()},
+        offline=True,
+    )
+
+    rendered = report_summary(report)
+    assert report.repair_verified
+    assert report.final_decision == Decision.PASS
+    assert rendered["summary"].startswith(
+        "The first draft had 1 issues; it was fixed once and re-checked."
+    )
+    assert rendered["compliance"] == "OK"
+    assert rendered["ad"] == {
+        "type": "text",
+        "ad_copy": "AeroBeat AB-01 is splash-resistant for everyday use.",
+    }
+    assert list(rendered) == [
+        "audit_id",
+        "needs_review",
+        "confidence",
+        "summary",
+        "ad",
+        "compliance",
+        "claims",
+    ]
+    _validate_check_payloads(report)
+
+
+@pytest.mark.asyncio
+async def test_supported_text_check_needs_no_repair_and_unknown_product_is_review():
+    index = FakeCorpusIndex()
+    report = await run_check_workflow(
+        "AeroBeat AB-01 is splash-resistant for everyday use.",
+        index=index,
+        model=_check_model(
+            initial_claims=[_text_claim("splash-resistant for everyday use")],
+            initial_assessments=[
+                _assessment(ClaimStatus.SUPPORTED, "splash-resistant for everyday use")
+            ],
+        ),
+        settings=Settings(),
+        policies={"google_ads": _policy(), "meta_ads": _policy()},
+        offline=True,
+    )
+    rendered = report_summary(report)
+    assert rendered["needs_review"] is False
+    assert rendered["summary"].startswith("Ready to run:")
+    assert rendered["compliance"] == "OK"
+    assert report.repair_proposal is None
+    _validate_check_payloads(report)
+
+    class NoProductIndex(FakeCorpusIndex):
+        def retrieve(self, _query, *, top_k=6):
+            return []
+
+    with pytest.raises(CheckWorkflowError, match="Couldn't match this ad"):
+        await run_check_workflow(
+            "A completely unknown product claim.",
+            index=NoProductIndex(),
+            model=FakeModelClient([]),
+            settings=Settings(),
+            policies={"google_ads": _policy(), "meta_ads": _policy()},
+            offline=True,
+        )
+    failure = _parse_rendered_report(
+        render_generation_failure(
+            "A completely unknown product claim.",
+            "Couldn't match this ad to a product in the company data.",
+        )
+    )
+    assert failure["needs_review"] is True
+    assert "Couldn't match this ad" in failure["summary"]
+
+
+class FakeImageInspector:
+    def __init__(self, text: str):
+        self.text = text
+        self.calls = 0
+
+    async def inspect(self, *, candidate_id, image_sha256, image_bytes, deadline):
+        self.calls += 1
+        return InspectionResult(
+            candidate_id=candidate_id,
+            image_sha256=image_sha256,
+            model_version="fake-inspector",
+            prompt_version="test",
+            status=InspectionStatus.COMPLETE,
+            observations=[
+                Observation(
+                    observation_id="obs-1",
+                    kind=ObservationKind.VISIBLE_TEXT,
+                    text=self.text,
+                )
+            ],
+        )
+
+
+@pytest.mark.asyncio
+async def test_uploaded_image_download_inspect_and_audit_returns_image_shape(monkeypatch):
+    from uagents_core.contrib.protocols.chat import Resource, ResourceContent
+    from uagents_core.identity import Identity
+
+    from agents.orchestrator import main as orchestrator
+
+    image = (ROOT / "data/fixtures/public/aerobeat-only49.png").read_bytes()
+    download_calls = []
+
+    class FakeStorage:
+        def __init__(self, *, identity, storage_url):
+            assert storage_url == "https://agentverse.ai/v1/storage"
+
+        def download(self, asset_id):
+            download_calls.append(asset_id)
+            return {
+                "contents": base64.b64encode(image).decode("ascii"),
+                "mime_type": "image/png",
+            }
+
+    monkeypatch.setattr(orchestrator, "ExternalStorage", FakeStorage)
+    content = ResourceContent(
+        resource_id=uuid.uuid4(),
+        resource=Resource(uri="agentverse://uploaded-image", metadata={}),
+    )
+    http = orchestrator.SafeHttpClient()
+    try:
+        downloaded = await orchestrator._download_resource_image(
+            content,
+            identity=Identity.from_seed("test-image-upload", 0),
+            http=http,
+        )
+    finally:
+        await http.close()
+    assert downloaded == image
+    assert download_calls == [str(content.resource_id)]
+
+    inspector = FakeImageInspector("AeroBeat AB-01 is splash-resistant for everyday use.")
+    report = await run_check_workflow(
+        "",
+        index=FakeCorpusIndex(),
+        model=_check_model(
+            initial_claims=[_text_claim("splash-resistant for everyday use")],
+            initial_assessments=[
+                _assessment(ClaimStatus.SUPPORTED, "splash-resistant for everyday use")
+            ],
+        ),
+        settings=Settings(),
+        policies={"google_ads": _policy(), "meta_ads": _policy()},
+        image=downloaded,
+        image_inspector=inspector,
+        offline=True,
+    )
+    parsed = _parse_rendered_report(render_report(report))
+    assert inspector.calls == 1
+    assert parsed["ad"] == {
+        "type": "image",
+        "detected_text": "AeroBeat AB-01 is splash-resistant for everyday use.",
+        "fixed_text": None,
+    }
+    assert list(parsed) == [
+        "audit_id",
+        "needs_review",
+        "confidence",
+        "summary",
+        "ad",
+        "compliance",
+        "claims",
+    ]
+    _validate_check_payloads(report)
+
+
+@pytest.mark.asyncio
+async def test_image_check_can_fix_text_and_invalid_images_return_safe_json():
+    image = (ROOT / "data/fixtures/public/aerobeat-only49.png").read_bytes()
+    inspector = FakeImageInspector("AeroBeat AB-01 is completely waterproof.")
+    report = await run_check_workflow(
+        "",
+        index=FakeCorpusIndex(),
+        model=_check_model(
+            initial_claims=[
+                _text_claim(
+                    "completely waterproof",
+                    source=ClaimSource.IMAGE,
+                    observation_id="obs-1",
+                )
+            ],
+            initial_assessments=[_assessment(ClaimStatus.CONTRADICTED, "not waterproof")],
+            repaired_copy="AeroBeat AB-01 is splash-resistant for everyday use.",
+            final_claims=[_text_claim("splash-resistant for everyday use")],
+            final_assessments=[
+                _assessment(ClaimStatus.SUPPORTED, "splash-resistant for everyday use")
+            ],
+        ),
+        settings=Settings(),
+        policies={"google_ads": _policy(), "meta_ads": _policy()},
+        image=image,
+        image_inspector=inspector,
+        offline=True,
+    )
+    rendered = report_summary(report)
+    assert rendered["ad"]["fixed_text"] == ("AeroBeat AB-01 is splash-resistant for everyday use.")
+    assert rendered["summary"] == (
+        "Fixed once and re-checked: replace the image text with fixed_text."
+    )
+    assert report.revised_audit.coverage.image.status == CoverageStatus.NOT_APPLICABLE
+    _validate_check_payloads(report)
+
+    with pytest.raises(CheckWorkflowError, match="safe PNG or JPEG"):
+        await run_check_workflow(
+            "",
+            index=FakeCorpusIndex(),
+            model=FakeModelClient([]),
+            settings=Settings(),
+            policies={"google_ads": _policy(), "meta_ads": _policy()},
+            image=b"not-an-image",
+            offline=True,
+        )
+    failure = _parse_rendered_report(
+        render_generation_failure("", "bytes are not a safe PNG or JPEG image")
+    )
+    assert failure["needs_review"] is True
+    assert failure["ad"] is None
