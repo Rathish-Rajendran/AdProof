@@ -117,7 +117,7 @@ Remaining human step: run `docker compose up` on an always-on host using the sam
 
 ## Synthetic corpus and hybrid index
 
-The synthetic AeroBeat corpus contains 15 Markdown documents totaling 20,546 bytes. The AB-01 corpus facts test passed, including the restriction that “waterproof” appears only as “not waterproof” in AB-01 documents. The local SQLite index was built with FastEmbed `BAAI/bge-small-en-v1.5`; the first model download populated `/tmp/fastembed_cache` with 67,226,806 bytes (about 64.1 MiB). The build embedded the corpus in 2.856 s; total command wall time, including model download/load, was 10.51 s. Fake-embedder retrieval tests and the full test suite passed.
+The synthetic AeroBeat corpus contains 23 Markdown documents totaling 36,792 bytes. The AB-01 corpus facts test passed, including the restriction that “waterproof” appears only as “not waterproof” in AB-01 documents. The local SQLite index was built with FastEmbed `BAAI/bge-small-en-v1.5`; the first model download populated `/tmp/fastembed_cache` with 67,226,806 bytes (about 64.1 MiB). The build embedded the corpus in 2.856 s; total command wall time, including model download/load, was 10.51 s. Fake-embedder retrieval tests and the full test suite passed.
 
 ## Policy-library verification
 
