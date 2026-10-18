@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from uagents import Agent
-from uagents.resolver import RulesBasedResolver
+from uagents.resolver import GlobalResolver, Resolver, RulesBasedResolver
 from uagents_core.identity import Identity
 
 from adproof.infrastructure.settings import Settings, load_or_create_seeds, write_public_addresses
@@ -16,6 +16,21 @@ SEED_ENV = {
     "verifier": "VERIFIER_SEED",
     "remediator": "REMEDIATOR_SEED",
 }
+
+
+class LocalFirstResolver(Resolver):
+    """Resolve trusted peers from local rules; optionally fall back to Almanac for chat users."""
+
+    def __init__(self, rules: dict[str, str], fallback: Resolver | None = None):
+        self._rules = rules
+        self._local = RulesBasedResolver(rules)
+        self._fallback = fallback
+
+    async def resolve(self, destination: str) -> tuple[str | None, list[str]]:
+        address, endpoints = await self._local.resolve(destination)
+        if endpoints or self._fallback is None:
+            return address, endpoints
+        return await self._fallback.resolve(destination)
 
 
 def load_identities(settings: Settings) -> tuple[dict[str, str], dict[str, str]]:
@@ -53,7 +68,9 @@ def make_agent(
         "name": f"adproof-{role}",
         "seed": seed,
         "port": own_port,
-        "resolve": RulesBasedResolver(endpoints),
+        "resolve": LocalFirstResolver(
+            endpoints, fallback=GlobalResolver() if public_orchestrator else None
+        ),
         "mailbox": public_orchestrator,
         "publish_agent_details": public_orchestrator,
         "readme_path": (

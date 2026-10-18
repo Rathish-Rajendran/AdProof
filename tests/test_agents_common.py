@@ -56,3 +56,20 @@ def test_specialist_keeps_loopback_endpoint_when_mailbox_is_enabled(monkeypatch)
     assert captured["mailbox"] is False
     assert captured["endpoint"] == ["http://127.0.0.1:8101/submit"]
     assert captured["resolve"]._rules["agent-orchestrator"] == "http://127.0.0.1:8100/submit"
+
+
+def test_public_orchestrator_falls_back_to_global_resolution_for_chat_users():
+    import asyncio
+
+    from agents.common import LocalFirstResolver
+
+    class Fallback:
+        async def resolve(self, destination):
+            return destination, ["https://agentverse.ai/v2/agents/mailbox/submit"]
+
+    resolver = LocalFirstResolver({"agent-verifier": "http://127.0.0.1:8101/submit"}, Fallback())
+    assert asyncio.run(resolver.resolve("agent-verifier"))[1] == ["http://127.0.0.1:8101/submit"]
+    assert asyncio.run(resolver.resolve("agent-asi-user"))[1] == [
+        "https://agentverse.ai/v2/agents/mailbox/submit"
+    ]
+    assert asyncio.run(LocalFirstResolver({}).resolve("agent-asi-user"))[1] == []
