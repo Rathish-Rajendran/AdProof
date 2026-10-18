@@ -301,9 +301,14 @@ class UAgentsGateway:
                 if "PAYLOAD_TOO_LARGE" in str(exc)
                 else TypedErrorCode.MODEL_MALFORMED_OUTPUT
             )
+            message = (
+                "Specialist reply was too large to transmit (PAYLOAD_TOO_LARGE)."
+                if code == TypedErrorCode.PAYLOAD_TOO_LARGE
+                else f"Specialist returned an invalid payload ({type(exc).__name__})."
+            )
             return TypedError(
                 code=code,
-                message=f"Specialist returned an invalid payload ({type(exc).__name__}).",
+                message=message,
             )
 
 

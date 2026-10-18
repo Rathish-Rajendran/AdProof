@@ -523,6 +523,28 @@ async def verify_campaign(
         errors=errors,
         policy_checks=policy_checks,
     )
+    if request.corpus_mode:
+        claims_by_id = {claim.id: claim for claim in claims}
+        retained_evidence_ids = {
+            evidence_id for claim in claims for evidence_id in claim.evidence_ids
+        }
+        for issue in issues:
+            issue_evidence_ids = getattr(issue, "evidence_ids", [])
+            retained_evidence_ids.update(issue_evidence_ids)
+            if issue.claim_id in claims_by_id:
+                retained_evidence_ids.update(claims_by_id[issue.claim_id].evidence_ids)
+        product_page_evidence_id = page_evidence.id if page_evidence is not None else None
+        if product_page_evidence_id is not None:
+            retained_evidence_ids.add(product_page_evidence_id)
+        evidence = [
+            (
+                item.model_copy(update={"excerpt": item.excerpt[:500]})
+                if item.id == product_page_evidence_id
+                else item
+            )
+            for item in evidence
+            if item.id in retained_evidence_ids
+        ]
     return VerificationResult(
         audit_id=request.audit_id,
         campaign_id=request.campaign_id,

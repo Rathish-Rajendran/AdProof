@@ -14,11 +14,14 @@ from adproof.domain.models import (
     VerificationRequest,
 )
 from adproof.generate import _offline_model
+from adproof.generator.generator import GenerationResult
 from adproof.generator.workflow import run_generation_workflow
 from adproof.infrastructure.settings import Settings
 from adproof.model_client import FakeModelClient
 from adproof.orchestrator.report_view import report_summary
 from adproof.rag.chunker import CorpusChunk, CorpusDocument
+from adproof.rag.index import CorpusIndex
+from adproof.transport.models import SpecialistOperation, SpecialistResult, validate_result_shape
 from adproof.verifier.policy import PolicyEngine
 from adproof.verifier.verifier import (
     VerificationDependencies,
@@ -71,6 +74,11 @@ class FakeCorpusIndex:
 
     def document_for_url(self, url):
         return self.document if url == PAGE_URL else None
+
+
+class FakeCorpusEmbedder:
+    def embed(self, texts):
+        return ([float(len(text)), float(text.casefold().count("battery"))] for text in texts)
 
 
 def _policy() -> PolicyEngine:
@@ -260,6 +268,97 @@ async def test_corpus_verification_accepts_quote_from_product_page_only():
 
 
 @pytest.mark.asyncio
+async def test_eight_claim_corpus_audit_fits_transport_and_has_only_referenced_evidence(
+    tmp_path,
+):
+    index = CorpusIndex(
+        path=tmp_path / "corpus_index.sqlite3",
+        corpus_path=ROOT / "data/corpus/aerobeat",
+        embedder=FakeCorpusEmbedder(),
+    )
+    index.build()
+    claim_quotes = [
+        ("AB-01 is a wireless over-ear headphone.", "wireless over-ear headphone"),
+        ("AB-01 is for everyday listening.", "everyday listening"),
+        ("AB-01 is splash-resistant for everyday use.", "splash-resistant for everyday use"),
+        ("AB-01 has an IPX4 rating.", "has an IPX4 rating"),
+        ("AB-01 is not waterproof.", "not waterproof"),
+        ("AB-01 should not be submerged.", "should not be submerged"),
+        ("AB-01 uses Bluetooth 5.3.", "uses Bluetooth 5.3"),
+        ("AB-01 uses USB-C charging.", "USB-C charging"),
+    ]
+    model = FakeModelClient(
+        [
+            _ClaimExtraction(
+                claims=[
+                    _ExtractedClaim(
+                        claim=claim,
+                        source=ClaimSource.AD_TEXT,
+                        claim_type=ClaimType.OTHER_OBJECTIVE,
+                    )
+                    for claim, _ in claim_quotes
+                ]
+            ),
+            _AssessmentOutput(
+                assessments=[
+                    _Assessment(
+                        claim_id=f"claim-{index}",
+                        status=ClaimStatus.SUPPORTED,
+                        source_index=0,
+                        quote=quote,
+                        explanation="The product page supports this claim.",
+                    )
+                    for index, (_, quote) in enumerate(claim_quotes, start=1)
+                ]
+            ),
+        ]
+    )
+
+    result = await verify_campaign(
+        _request(" ".join(claim for claim, _ in claim_quotes)),
+        VerificationDependencies(
+            http=None,  # type: ignore[arg-type]
+            model=model,
+            policy=_policy(),
+            corpus_index=index,
+        ),
+    )
+
+    evidence_by_id = {item.id: item for item in result.evidence}
+    cited_evidence_ids = {
+        evidence_id for claim in result.claims for evidence_id in claim.evidence_ids
+    }
+    product_page = next(item for item in result.evidence if item.locator.endswith("#page"))
+    assert len(result.claims) == 8
+    assert all(claim.status == ClaimStatus.SUPPORTED for claim in result.claims)
+    assert all(
+        evidence_id in evidence_by_id
+        for claim in result.claims
+        for evidence_id in claim.evidence_ids
+    )
+    assert {item.id for item in result.evidence} == cited_evidence_ids | {product_page.id}
+    assert all(item.locator.endswith("#page") for item in result.evidence)
+    assert len(product_page.excerpt) <= 500
+
+    validate_result_shape(
+        SpecialistResult(
+            schema_version="1.0",
+            audit_id=result.audit_id,
+            task_id="task-corpus-8-claims",
+            request_id="request-corpus",
+            campaign_id=result.campaign_id,
+            candidate_id=result.candidate_id,
+            creative_version=result.creative_version,
+            phase=result.phase.value,
+            operation=SpecialistOperation.VERIFY,
+            attempt=1,
+            execution_mode="TEST",
+            payload_json=result.model_dump_json(),
+        )
+    )
+
+
+@pytest.mark.asyncio
 async def test_offline_generation_workflow_repairs_and_rechecks():
     index = FakeCorpusIndex()
     prompt = "Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults"
@@ -272,6 +371,68 @@ async def test_offline_generation_workflow_repairs_and_rechecks():
         settings=settings,
         policies=policies,
         offline=True,
+    )
+    assert report.original_audit is not None
+    assert report.generation_request is not None
+    assert report.generated_ad is not None
+    assert report.repair_proposal is not None
+    assert report.revised_candidate is not None
+    assert report.revised_audit is not None
+    generation_result = GenerationResult(
+        request=report.generation_request,
+        generated_ad=report.generated_ad,
+        model_version=report.model_versions["ad_generation"],
+        sources=[
+            {"chunk_id": chunk.chunk_id, "title": chunk.title, "url": chunk.url}
+            for chunk in index.retrieve(prompt, top_k=6)
+        ],
+    )
+
+    def validate_specialist_payload(payload, *, operation, candidate_id, version, phase):
+        validate_result_shape(
+            SpecialistResult(
+                schema_version="1.0",
+                audit_id=report.audit_id,
+                task_id=f"offline-{operation.value}-{phase.lower()}",
+                request_id="offline-request",
+                campaign_id=report.original_candidate.campaign_id,
+                candidate_id=candidate_id,
+                creative_version=version,
+                phase=phase,
+                operation=operation,
+                attempt=1,
+                execution_mode="MOCK",
+                payload_json=payload.model_dump_json(),
+            )
+        )
+
+    validate_specialist_payload(
+        generation_result,
+        operation=SpecialistOperation.GENERATE,
+        candidate_id=report.original_candidate.candidate_id,
+        version=1,
+        phase="ORIGINAL",
+    )
+    validate_specialist_payload(
+        report.original_audit,
+        operation=SpecialistOperation.VERIFY,
+        candidate_id=report.original_candidate.candidate_id,
+        version=1,
+        phase="ORIGINAL",
+    )
+    validate_specialist_payload(
+        report.repair_proposal,
+        operation=SpecialistOperation.REPAIR,
+        candidate_id=report.revised_candidate.candidate_id,
+        version=1,
+        phase="REPAIR",
+    )
+    validate_specialist_payload(
+        report.revised_audit,
+        operation=SpecialistOperation.VERIFY,
+        candidate_id=report.revised_candidate.candidate_id,
+        version=2,
+        phase="REPAIRED",
     )
     summary = report_summary(report)
     assert report.original_audit.decision == Decision.FIX_REQUIRED
