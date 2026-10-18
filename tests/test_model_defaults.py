@@ -6,7 +6,7 @@ from adproof.infrastructure.settings import Settings
 from adproof.model_client import GoogleGenAIClient
 
 
-def test_ollama_is_the_default_provider(monkeypatch) -> None:
+def test_gemini_is_the_default_provider(monkeypatch) -> None:
     monkeypatch.delenv("GEMINI_MODEL", raising=False)
     monkeypatch.delenv("ADPROOF_MODEL_PROVIDER", raising=False)
     monkeypatch.delenv("OLLAMA_MODEL", raising=False)
@@ -19,14 +19,14 @@ def test_ollama_is_the_default_provider(monkeypatch) -> None:
     monkeypatch.delenv("ADPROOF_WORKFLOW_DEADLINE_SECONDS", raising=False)
 
     settings = Settings.from_env()
-    assert settings.model_provider == "ollama"
-    assert settings.model_default == "ollama:qwen2.5:3b"
-    assert settings.active_model == "qwen2.5:3b"
+    assert settings.model_provider == "gemini"
+    assert settings.model_default == "gemini:gemini-3.5-flash"
+    assert settings.active_model == "gemini-3.5-flash"
     assert settings.model_specs == {
-        "image_inspection": "ollama:qwen2.5vl:3b",
-        "claim_extraction": "ollama:qwen2.5:3b",
-        "evidence_assessment": "ollama:qwen2.5:3b",
-        "copy_remediation": "ollama:qwen2.5:3b",
+        "image_inspection": "gemini:gemini-3.5-flash",
+        "claim_extraction": "gemini:gemini-3.5-flash",
+        "evidence_assessment": "gemini:gemini-3.5-flash",
+        "copy_remediation": "gemini:gemini-3.5-flash",
     }
     assert settings.ollama_base_url == "http://127.0.0.1:11434"
     assert settings.workflow_deadline_seconds == 600

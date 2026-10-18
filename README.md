@@ -10,7 +10,7 @@ flowchart LR
     B --> C[Orchestrator]
     C --> D[Verifier]
     C --> E[Remediator]
-    D --> F["Ollama (default) / Gemini (optional)"]
+    D --> F["Gemini (default) / Ollama (optional)"]
     E --> F
     C -. traces and logs .-> G[Sentry]
     D -. traces and logs .-> G
@@ -28,7 +28,8 @@ See the [architecture overview](docs/architecture.md) for component details.
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 
-- Ollama installed and serving at `http://127.0.0.1:11434` for the default local provider. See the [official install guide](https://ollama.com/download). Pull the default text and vision models if they are not already available locally:
+- A Gemini API key with billing enabled. The free tier ran out after about 6–8 calls in prior testing; one `demo aerobeat` run uses about 8. Quotas and provider behavior can change.
+- Optional: Ollama installed and serving locally for local model calls. See the [official install guide](https://ollama.com/download). Pull the Qwen 3B pair if they are not already available:
 
   ```sh
   curl -fsSL https://ollama.com/install.sh | sh
@@ -36,7 +37,6 @@ See the [architecture overview](docs/architecture.md) for component details.
   ollama pull qwen2.5vl:3b
   ```
 
-- A Gemini API key with billing enabled only if any selected job uses Gemini. On the prior key, the free tier ran out after about 6–8 calls; one `demo aerobeat` workflow uses about 8 calls. Quotas and provider behavior can change.
 - Optional Sentry DSN for tracing and logs.
 - An Agentverse account and an ASI:One account, both available through [asi1.ai](https://asi1.ai). The Agentverse inspector is also available at [agentverse.ai](https://agentverse.ai).
 
@@ -62,18 +62,21 @@ if [ ! -f .env ]; then cp .env.example .env; fi
 $EDITOR .env
 ```
 
-The default model spec is `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b`; specs use `<provider>:<model>` and split at the first colon, so Ollama tags such as `qwen2.5:3b` work. The image-inspection override defaults to `ollama:qwen2.5vl:3b`; the other three jobs inherit `ADPROOF_MODEL_DEFAULT`.
+The default model spec is `ADPROOF_MODEL_DEFAULT=gemini:gemini-3.5-flash`; all jobs, including image inspection, default to Gemini. Specs use `<provider>:<model>` and split at the first colon, so Ollama tags such as `qwen2.5:3b` work.
 
 | Job | Environment variable | Default | Rationale |
 |---|---|---|---|
-| Image inspection | `ADPROOF_MODEL_IMAGE_INSPECTION` | `ollama:qwen2.5vl:3b` | The only job that reads image pixels, so it uses a vision model. |
-| Claim extraction | `ADPROOF_MODEL_CLAIM_EXTRACTION` | `ollama:qwen2.5:3b` via the default | Text-only 3B model for instruction following and JSON with lower CPU latency. |
-| Evidence assessment | `ADPROOF_MODEL_EVIDENCE_ASSESSMENT` | `ollama:qwen2.5:3b` via the default | Text-only evidence and quote checking. |
-| Copy remediation | `ADPROOF_MODEL_COPY_REMEDIATION` | `ollama:qwen2.5:3b` via the default | Shares the text model; application code validates numeric changes. |
+| Image inspection | `ADPROOF_MODEL_IMAGE_INSPECTION` | `gemini:gemini-3.5-flash` | The only job that reads image pixels, so it uses a vision-capable model. |
+| Claim extraction | `ADPROOF_MODEL_CLAIM_EXTRACTION` | `gemini:gemini-3.5-flash` via the default | Text-only claim extraction. |
+| Evidence assessment | `ADPROOF_MODEL_EVIDENCE_ASSESSMENT` | `gemini:gemini-3.5-flash` via the default | Text-only evidence and quote checking. |
+| Copy remediation | `ADPROOF_MODEL_COPY_REMEDIATION` | `gemini:gemini-3.5-flash` via the default | Shares the text model; application code validates numeric changes. |
 
-The 7B pair (`qwen2.5:7b` and `qwen2.5vl:7b`) is the higher-accuracy local option, but is slower on CPU; the partial 7B results below did not establish a quality improvement. The text model is intended to provide stronger instruction following and structured JSON, while the vision model is reserved for the job that reads pixels; repair shares the text model because code validates numbers. Pull both and set `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:7b` and `ADPROOF_MODEL_IMAGE_INSPECTION=ollama:qwen2.5vl:7b` to use it:
+Ollama with `qwen2.5:3b` for text and `qwen2.5vl:3b` for image inspection is an optional local alternative. To use it, set both `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b` and `ADPROOF_MODEL_IMAGE_INSPECTION=ollama:qwen2.5vl:3b`; the 3B local runs mostly ended in `HUMAN_REVIEW`. The 7B pair is a higher-capacity local option but slower on CPU, and its partial run did not establish a quality improvement. The vision model is reserved for the job that reads pixels; repair shares the text model because code validates numbers. Pull either pair from the Ollama host before use:
 
 ```sh
+ollama pull qwen2.5:3b
+ollama pull qwen2.5vl:3b
+# Optional higher-capacity local pair:
 ollama pull qwen2.5:7b
 ollama pull qwen2.5vl:7b
 ```
@@ -92,13 +95,13 @@ On first start, the runtime generates private identities in `runtime/agent-seeds
 
 ## 5. Live model evaluation
 
-With Ollama running and the environment loaded as above, evaluate the configured provider:
+With the environment loaded as above and `GEMINI_API_KEY` configured, evaluate the default Gemini provider:
 
 ```sh
 uv run python -m adproof.eval --live --cases 1,2 --max-model-calls 12
 ```
 
-This makes live model calls and writes a JSON report under `runtime/eval/`. Case 1 is expected to find unsafe claims and decide `FIX_REQUIRED`; case 2 is expected to pass. The default Ollama provider runs locally and does not use Gemini quota. Selecting Gemini may incur charges and may hit provider quotas; provider errors can produce `HUMAN_REVIEW`.
+This makes live model calls and writes a JSON report under `runtime/eval/`. Case 1 is expected to find unsafe claims and decide `FIX_REQUIRED`; case 2 is expected to pass. Gemini calls may incur charges and provider quotas can produce `HUMAN_REVIEW`; successful calls for the configured `gemini-3.5-flash` have reported served model `gemini-3.6-flash`.
 
 On an 8-core, 31 GB CPU-only machine, the user measured the `qwen2.5vl:3b` probe reading the only-$49 image correctly in 42 seconds including model load and splitting the unsafe copy into four atomic claims in 10 seconds. `gemma3:4b` also produced the correct outputs but took 71 seconds and 46 seconds, respectively. These are single-machine observations, not benchmarks for the current per-job mapping. Small local models may be less accurate than Gemini and can be slow on CPU; review each live result rather than treating model output as guaranteed.
 
@@ -147,32 +150,61 @@ Healthy output lists `HEALTHY` for all three roles. Stop the foreground supervis
 
 1. At [asi1.ai](https://asi1.ai), start a chat and put `adproof-orchestrator` in the **To:** box, or prefix each message with `@<orchestrator address>`. Without the `@` mention or recipient, the message goes to ASI:One's own AI.
 2. Send `help`, then `demo aerobeat`.
-3. The expected case-1 result is an original `FIX_REQUIRED` audit with four issues: two `AD_LANDING_PAGE_CONTRADICTION` findings for waterproof and 48-hour battery claims, `UNVERIFIED_ENDORSEMENT` for the unsupported athlete endorsement, and `PRICE_DISCOUNT_MISMATCH` for the 50%-off claim (the evidence establishes 25%). The workflow proposes one copy-only repair and independently re-checks it against the same image. The latest live repair proposal was “AeroBeat headphones are splash-resistant for everyday use. Get up to 30 hours of battery life with noise cancellation off. Now $60—25% off!” The result card includes **Show report** and **Status**; **Run one repair** is available only when the original is `FIX_REQUIRED` and no repair exists yet.
+3. The expected case-1 result is an original `FIX_REQUIRED` audit with four issues: two `AD_LANDING_PAGE_CONTRADICTION` findings for waterproof and 48-hour battery claims, `UNVERIFIED_ENDORSEMENT` for the unsupported athlete endorsement, and `PRICE_DISCOUNT_MISMATCH` for the 50%-off claim (the evidence establishes 25%). The workflow proposes one copy-only repair and independently re-checks it against the same image. The latest user-reported live run passed all steps in about 19.4 seconds. ASI:One now returns one pretty-printed JSON block rather than a result card; for example:
+
+   ```json
+   {
+     "audit_id": "8fef0a98d3ad4144a805427ce679228a",
+     "original_check": {
+       "decision": "FIX_REQUIRED",
+       "issues": [
+         {"claim": "AeroBeat headphones are completely waterproof.", "status": "CONTRADICTED", "why": "The source says the headphones are not waterproof."},
+         {"claim": "Get 48-hour battery life with noise cancellation off.", "status": "CONTRADICTED", "why": "The source gives up to 30 hours."},
+         {"claim": "Recommended by 1,000 athletes.", "status": "INSUFFICIENT_EVIDENCE", "why": "The source contains no endorsement information."},
+         {"claim": "AeroBeat headphones are 50% off.", "status": "CONTRADICTED", "why": "The supplied prices establish 25% off."}
+       ]
+     },
+     "fix": {
+       "ad_copy": "AeroBeat headphones are splash-resistant for everyday use. Get up to 30 hours of battery life with noise cancellation off. Now $60—25% off!"
+     },
+     "recheck": {"decision": "PASS", "issues": [], "changed_decision": true},
+     "final": {
+       "decision": "PASS",
+       "ad_copy": "AeroBeat headphones are splash-resistant for everyday use. Get up to 30 hours of battery life with noise cancellation off. Now $60—25% off!",
+       "repair_verified": true
+     }
+   }
+   ```
+
+   The `report <audit_id>` and `status <audit_id>` text commands still work.
 4. Try `demo aerobeat49` to see that a copy edit cannot change the `$49` shown in the image, so the image issue remains `FIX_REQUIRED`; `demo aerobeat correct` audits the already-correct ad.
 5. `HUMAN_REVIEW` with `MODEL_UNAVAILABLE` generally indicates quota exhaustion (often HTTP 429) or provider unavailability (often HTTP 503). `MODEL_AUTH` (HTTP 401) indicates a bad or stale key: update `.env`, re-export it, and restart the agents so they use the new value.
 
 ## 9. Always-on hosting (Docker)
 
-Use the private `.env` from section 4; if starting from a fresh checkout, create it from the example. Set `ADPROOF_MAILBOX_ENABLED=1`. Compose provides the agents with the internal Ollama address `http://ollama:11434`:
+Use the private `.env` from section 4; if starting from a fresh checkout, create it from the example and fill `GEMINI_API_KEY`. Plain Compose uses Gemini by default. Set `ADPROOF_MAILBOX_ENABLED=1`:
 
 ```sh
 if [ ! -f .env ]; then cp .env.example .env; fi
 $EDITOR .env
 docker compose config --quiet
-docker compose up --build -d ollama
-docker compose exec ollama ollama pull qwen2.5:3b
-docker compose exec ollama ollama pull qwen2.5vl:3b
-# Optional higher-accuracy local pair:
-docker compose exec ollama ollama pull qwen2.5:7b
-docker compose exec ollama ollama pull qwen2.5vl:7b
 docker compose up --build -d
 docker compose ps
 docker compose logs orchestrator
 ```
 
-Compose loads `.env` itself. The named `ollama_models` volume retains downloaded models; the named `runtime` volume holds container identities across restarts. To retain the address already connected in Agentverse, privately copy the values from your existing `runtime/agent-seeds.json` into `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, and `REMEDIATOR_SEED` in `.env`; never print or commit them. Connect the mailbox using a browser on the Docker host, where port 8100 is published. To route a job through Gemini, set its `ADPROOF_MODEL_*` variable to a `gemini:<model>` spec and provide `GEMINI_API_KEY`; restart the Compose services after changing provider settings.
+For the optional local Qwen service, uncomment the two Ollama model specs in `.env`, then enable the profile:
 
-**Docker validation:** Docker is available in the validation environment, and `docker compose config --quiet` passed using a temporary `.env` copied from `.env.example`. The full `docker compose up` was **not** tested in this validation.
+```sh
+docker compose --profile ollama up --build -d ollama
+docker compose --profile ollama exec ollama ollama pull qwen2.5:3b
+docker compose --profile ollama exec ollama ollama pull qwen2.5vl:3b
+docker compose --profile ollama up --build -d
+```
+
+Compose loads `.env` itself. The named `ollama_models` volume retains downloaded local models; the named `runtime` volume holds container identities across restarts. To retain the address already connected in Agentverse, privately copy the values from your existing `runtime/agent-seeds.json` into `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, and `REMEDIATOR_SEED` in `.env`; never print or commit them. Connect the mailbox using a browser on the Docker host, where port 8100 is published. Restart the Compose services after changing model settings.
+
+**Docker validation:** Docker is available in the validation environment; both `docker compose config -q` and `docker compose --profile ollama config -q` were validated using a temporary `.env` copied from `.env.example`. The full `docker compose up` was **not** tested in this validation.
 
 ## 10. Troubleshooting
 
@@ -184,12 +216,12 @@ Compose loads `.env` itself. The named `ollama_models` volume retains downloaded
 | ASI:One does not reply | Agents are stopped, the host is asleep, or the message was not addressed to the agent. | Check `runtime/orchestrator.log`, verify the recipient/`@` mention, and restart the agents if needed. |
 | `Request could not be processed (ValueError)` | An old build does not strip ASI:One's leading `@` mention. | Pull/update the current code and restart the orchestrator. |
 | `MODEL_AUTH` HTTP 401 | The configured key is invalid or stale. | Update `.env`, re-export it, and restart/recreate the agents. |
-| `MODEL_UNAVAILABLE` / model not found | Ollama is unavailable or a selected model is not pulled; Gemini quota/provider errors can also cause this code. | Start Ollama and pull the model named by the relevant `ADPROOF_MODEL_*` spec; for Gemini quota errors enable billing or retry later after provider outages. |
+| `MODEL_UNAVAILABLE` / model not found | Gemini quota/provider errors, or an unavailable/unpulled optional Ollama model. | Enable Gemini billing or retry after provider outages; if using local Ollama, start its profile and pull the selected model. |
 | “Not enough funds to register on Almanac contract” | Optional on-chain registration was skipped. | No action needed; successful Almanac API mailbox registration is sufficient. |
 
 ## 11. Validation status
 
-See the detailed [validation status](docs/validation-status.md). Live Agentverse mailbox registration, Sentry ingestion, and the ASI:One help round-trip have passed. The latest user-reported ASI:One case-1 run used Gemini: the original four-issue `FIX_REQUIRED` audit and copy-only repair proposal succeeded through all three agents, but Gemini quota exhaustion blocked re-verification, leaving the workflow `PARTIAL` with `HUMAN_REVIEW` and `repair_verified=false`. The current per-job 3B case-1 evaluation returned `HUMAN_REVIEW` instead of `FIX_REQUIRED`; a separate 7B run was stopped for latency after cases 1 and 2 also returned `HUMAN_REVIEW`. An earlier single-model Ollama four-case run used 13 calls, with additional quality gaps including failure to report the `$49` image mismatch in case 3. The full ASI:One workflow remains **PARTIAL**; these local evaluations do not validate Ollama in ASI:One.
+See the detailed [validation status](docs/validation-status.md). Live Agentverse mailbox registration, Sentry ingestion, and ASI:One help have passed. The user reports that the latest Gemini ASI:One run completed the original four-issue `FIX_REQUIRED` audit, one copy-only repair, independent `PASS` re-check, and final `PASS` with `repair_verified=true` in about 19.4 seconds. Earlier 3B local runs mostly ended in `HUMAN_REVIEW`; the interrupted 7B run did not establish a quality improvement.
 
 ## 12. Agent addresses
 
@@ -210,6 +242,6 @@ One campaign supports one PNG/JPEG image, one copy string, one HTTPS landing pag
 ## MOCK vs LIVE
 
 - `MOCK` is selected explicitly with `uv run python -m adproof.demo --mode mock`; it uses deterministic fixtures and is offline.
-- `LIVE` uses the configured provider (Ollama by default) and real supplied HTTPS sources. Errors remain typed errors; there is no silent fallback to fixture outputs.
+- `LIVE` uses the configured provider (Gemini by default; Ollama is optional) and real supplied HTTPS sources. Errors remain typed errors; there is no silent fallback to fixture outputs.
 - A job spec such as `gemini:gemini-3.5-flash` opts that job into Gemini; only Gemini-routed jobs require `GEMINI_API_KEY` and can incur provider charges. Keep credentials in the environment or a secret manager, never in source control.
 - The bounded live evaluator writes its JSON report under `runtime/eval/`; see [evaluation](docs/evaluation.md).

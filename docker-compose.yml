@@ -1,6 +1,7 @@
 services:
   ollama:
     image: ollama/ollama
+    profiles: ["ollama"]
     volumes:
       - ollama_models:/root/.ollama
     healthcheck:
@@ -21,9 +22,6 @@ services:
       REMEDIATOR_HOST: remediator
     volumes:
       - runtime:/runtime
-    depends_on:
-      ollama:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)"]
       interval: 10s
@@ -42,9 +40,6 @@ services:
       REMEDIATOR_HOST: remediator
     volumes:
       - runtime:/runtime
-    depends_on:
-      ollama:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)"]
       interval: 10s
@@ -67,8 +62,6 @@ services:
     ports:
       - "8100:8100"
     depends_on:
-      ollama:
-        condition: service_healthy
       verifier:
         condition: service_healthy
       remediator:

@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
-DEFAULT_MODEL_DEFAULT = "ollama:qwen2.5:3b"
-DEFAULT_MODEL_IMAGE_INSPECTION = "ollama:qwen2.5vl:3b"
+DEFAULT_MODEL_DEFAULT = "gemini:gemini-3.5-flash"
+DEFAULT_MODEL_IMAGE_INSPECTION = "gemini:gemini-3.5-flash"
 MODEL_PURPOSES = (
     "image_inspection",
     "claim_extraction",
@@ -59,7 +59,7 @@ class Settings:
 
     def __post_init__(self) -> None:
         if self.model_default is None:
-            provider = self.model_provider or "ollama"
+            provider = self.model_provider or ModelSpec.parse(DEFAULT_MODEL_DEFAULT).provider
             if provider not in {"ollama", "gemini"}:
                 raise ValueError("model provider must be 'ollama' or 'gemini'")
             model = self.ollama_model or "qwen2.5:3b" if provider == "ollama" else self.gemini_model
@@ -96,7 +96,9 @@ class Settings:
     def from_env(cls) -> Settings:
         model_default = os.getenv("ADPROOF_MODEL_DEFAULT")
         if model_default is None:
-            provider = os.getenv("ADPROOF_MODEL_PROVIDER", "ollama")
+            provider = os.getenv(
+                "ADPROOF_MODEL_PROVIDER", ModelSpec.parse(DEFAULT_MODEL_DEFAULT).provider
+            )
             if provider not in {"ollama", "gemini"}:
                 raise ValueError("ADPROOF_MODEL_PROVIDER must be 'ollama' or 'gemini'")
             legacy_model = (
