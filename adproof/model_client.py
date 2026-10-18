@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 import random
@@ -11,10 +12,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+import httpx
 from pydantic import BaseModel, ValidationError
 
 from adproof.domain.models import TypedError, TypedErrorCode
 from adproof.infrastructure.budget import BudgetExhausted, ModelCallBudget
+from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import record_event
 
 PROMPT_SCHEMA_VERSION = "1"
@@ -252,6 +255,283 @@ class GoogleGenAIClient:
                 usage=usage_values,
                 latency=time.monotonic() - start,
             )
+
+
+class OllamaClient:
+    def __init__(
+        self,
+        *,
+        model: str = "qwen2.5vl:3b",
+        base_url: str = "http://127.0.0.1:11434",
+        budget: ModelCallBudget | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ):
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.budget = budget
+        self.transport = transport
+        self.call_records: list[dict[str, Any]] = []
+
+    async def generate_json(
+        self,
+        prompt_parts: Sequence[str | tuple[bytes, str]],
+        schema: type[BaseModel] | dict[str, Any],
+        *,
+        deadline: datetime,
+        purpose: str,
+    ) -> ModelResponse:
+        schema_json = _schema_for(schema)
+        text_parts = [str(part) for part in prompt_parts if not isinstance(part, tuple)]
+        images = [
+            base64.b64encode(part[0]).decode("ascii")
+            for part in prompt_parts
+            if isinstance(part, tuple)
+        ]
+        prompt = "\n\n".join(text_parts)
+        started = time.monotonic()
+        correction = False
+        transport_retries = 0
+        async with httpx.AsyncClient(
+            transport=self.transport, trust_env=False, timeout=None
+        ) as client:
+            while True:
+                remaining = (deadline - datetime.now(UTC)).total_seconds()
+                if remaining <= 0:
+                    raise ModelClientError(
+                        TypedError(
+                            code=TypedErrorCode.TIMEOUT,
+                            message="model call deadline expired",
+                        )
+                    )
+                content = prompt
+                if correction:
+                    content = (
+                        f"{prompt}\n\nYour previous response did not validate. "
+                        "Return corrected JSON matching the schema exactly."
+                    )
+                if self.budget:
+                    try:
+                        await self.budget.reserve()
+                        await self.budget.consume()
+                    except BudgetExhausted as exc:
+                        raise ModelClientError(
+                            TypedError(code=TypedErrorCode.BUDGET_EXHAUSTED, message=str(exc))
+                        ) from exc
+
+                call_started = time.monotonic()
+                try:
+                    response = await asyncio.wait_for(
+                        client.post(
+                            f"{self.base_url}/api/chat",
+                            json={
+                                "model": self.model,
+                                "messages": [
+                                    {"role": "user", "content": content, "images": images}
+                                ],
+                                "format": schema_json,
+                                "stream": False,
+                                "options": {"temperature": 0},
+                            },
+                        ),
+                        timeout=remaining,
+                    )
+                except TimeoutError as exc:
+                    self.call_records.append(
+                        {
+                            "purpose": purpose,
+                            "model": self.model,
+                            "reported_model_version": None,
+                            "latency_seconds": time.monotonic() - call_started,
+                            "error": TypedErrorCode.TIMEOUT.value,
+                        }
+                    )
+                    raise ModelClientError(
+                        TypedError(
+                            code=TypedErrorCode.TIMEOUT,
+                            message="model call timed out",
+                            retryable=True,
+                        )
+                    ) from exc
+                except httpx.TransportError as exc:
+                    self.call_records.append(
+                        {
+                            "purpose": purpose,
+                            "model": self.model,
+                            "reported_model_version": None,
+                            "latency_seconds": time.monotonic() - call_started,
+                            "error": TypedErrorCode.MODEL_UNAVAILABLE.value,
+                            "http_status": None,
+                        }
+                    )
+                    delay = random.uniform(0.25, 0.75)
+                    if (
+                        transport_retries == 0
+                        and (deadline - datetime.now(UTC)).total_seconds() > delay + 0.1
+                    ):
+                        transport_retries += 1
+                        record_event(
+                            "retry_scheduled",
+                            role="model_client",
+                            stage=purpose,
+                            duration=delay,
+                            result=TypedErrorCode.MODEL_UNAVAILABLE.value,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    raise ModelClientError(
+                        TypedError(
+                            code=TypedErrorCode.MODEL_UNAVAILABLE,
+                            message=f"Ollama request failed ({type(exc).__name__})",
+                            retryable=True,
+                        )
+                    ) from exc
+
+                response_text = response.text
+                model_not_found = "model not found" in response_text.casefold()
+                if response.status_code == 404 or model_not_found:
+                    self.call_records.append(
+                        {
+                            "purpose": purpose,
+                            "model": self.model,
+                            "reported_model_version": None,
+                            "latency_seconds": time.monotonic() - call_started,
+                            "error": TypedErrorCode.MODEL_UNAVAILABLE.value,
+                            "http_status": response.status_code,
+                        }
+                    )
+                    raise ModelClientError(
+                        TypedError(
+                            code=TypedErrorCode.MODEL_UNAVAILABLE,
+                            message=f"Ollama model {self.model} is not pulled",
+                            retryable=False,
+                            details={"http_status": response.status_code},
+                        )
+                    )
+                if response.status_code >= 500:
+                    self.call_records.append(
+                        {
+                            "purpose": purpose,
+                            "model": self.model,
+                            "reported_model_version": None,
+                            "latency_seconds": time.monotonic() - call_started,
+                            "error": TypedErrorCode.MODEL_UNAVAILABLE.value,
+                            "http_status": response.status_code,
+                        }
+                    )
+                    delay = random.uniform(0.25, 0.75)
+                    if (
+                        transport_retries == 0
+                        and (deadline - datetime.now(UTC)).total_seconds() > delay + 0.1
+                    ):
+                        transport_retries += 1
+                        record_event(
+                            "retry_scheduled",
+                            role="model_client",
+                            stage=purpose,
+                            duration=delay,
+                            result=TypedErrorCode.MODEL_UNAVAILABLE.value,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    raise ModelClientError(
+                        TypedError(
+                            code=TypedErrorCode.MODEL_UNAVAILABLE,
+                            message=f"Ollama request failed (HTTP {response.status_code})",
+                            retryable=True,
+                            details={"http_status": response.status_code},
+                        )
+                    )
+                if response.is_error:
+                    self.call_records.append(
+                        {
+                            "purpose": purpose,
+                            "model": self.model,
+                            "reported_model_version": None,
+                            "latency_seconds": time.monotonic() - call_started,
+                            "error": TypedErrorCode.MODEL_UNAVAILABLE.value,
+                            "http_status": response.status_code,
+                        }
+                    )
+                    raise ModelClientError(
+                        TypedError(
+                            code=TypedErrorCode.MODEL_UNAVAILABLE,
+                            message=f"Ollama request failed (HTTP {response.status_code})",
+                            retryable=False,
+                            details={"http_status": response.status_code},
+                        )
+                    )
+
+                reported_model_version: str | None = None
+                try:
+                    envelope = response.json()
+                    if not isinstance(envelope, dict):
+                        raise TypeError("Ollama response must be a JSON object")
+                    reported_model_version = envelope.get("model")
+                    message = envelope["message"]
+                    if (
+                        not isinstance(reported_model_version, str)
+                        or not reported_model_version
+                        or not isinstance(message, dict)
+                        or not isinstance(message.get("content"), str)
+                    ):
+                        raise TypeError("Ollama response is missing model or message content")
+                    parsed = json.loads(message["content"])
+                    data = _validate_output(parsed, schema)
+                except (json.JSONDecodeError, KeyError, TypeError, ValidationError) as exc:
+                    self.call_records.append(
+                        {
+                            "purpose": purpose,
+                            "model": self.model,
+                            "reported_model_version": reported_model_version,
+                            "latency_seconds": time.monotonic() - call_started,
+                            "error": TypedErrorCode.MODEL_MALFORMED_OUTPUT.value,
+                        }
+                    )
+                    if correction:
+                        raise ModelClientError(
+                            TypedError(
+                                code=TypedErrorCode.MODEL_MALFORMED_OUTPUT,
+                                message=f"model output did not validate for {purpose}",
+                            )
+                        ) from exc
+                    correction = True
+                    continue
+
+                prompt_tokens = envelope.get("prompt_eval_count")
+                candidate_tokens = envelope.get("eval_count")
+                usage_values = {
+                    "prompt_tokens": prompt_tokens if isinstance(prompt_tokens, int) else None,
+                    "candidate_tokens": candidate_tokens
+                    if isinstance(candidate_tokens, int)
+                    else None,
+                }
+                self.call_records.append(
+                    {
+                        "purpose": purpose,
+                        "model": self.model,
+                        "reported_model_version": reported_model_version,
+                        "latency_seconds": time.monotonic() - call_started,
+                        "usage": usage_values,
+                    }
+                )
+                return ModelResponse(
+                    data=data,
+                    model_version=reported_model_version,
+                    usage=usage_values,
+                    latency=time.monotonic() - started,
+                )
+
+
+def build_model_client(settings: Settings, budget: ModelCallBudget | None = None) -> ModelClient:
+    if settings.model_provider == "ollama":
+        return OllamaClient(
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            budget=budget,
+        )
+    if settings.model_provider == "gemini":
+        return GoogleGenAIClient(model=settings.gemini_model, budget=budget)
+    raise ValueError("ADPROOF_MODEL_PROVIDER must be 'ollama' or 'gemini'")
 
 
 class FakeModelClient:

@@ -11,7 +11,7 @@ from adproof.domain.models import RepairRequest, TypedError, TypedErrorCode
 from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry
-from adproof.model_client import GoogleGenAIClient, ModelClientError
+from adproof.model_client import ModelClientError, build_model_client
 from adproof.remediator.remediator import remediate_copy
 from adproof.transport.models import (
     SpecialistOperation,
@@ -64,7 +64,7 @@ def run() -> None:
                 or request.candidate_id != task.candidate_id
             ):
                 raise ValueError("task correlation fields disagree with repair payload")
-            model = GoogleGenAIClient(model=settings.gemini_model, budget=budget)
+            model = build_model_client(settings, budget)
             headers = task.trace_headers or {}
             transaction = sentry_sdk.continue_trace(
                 headers, op="adproof.specialist", name="repair copy"

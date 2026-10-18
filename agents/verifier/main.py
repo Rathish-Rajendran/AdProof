@@ -18,7 +18,7 @@ from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.safe_http import SafeHttpClient
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry
-from adproof.model_client import GoogleGenAIClient, ModelClientError
+from adproof.model_client import ModelClientError, build_model_client
 from adproof.transport.models import (
     SpecialistOperation,
     SpecialistResult,
@@ -111,7 +111,7 @@ def run() -> None:
                 or request.deadline != task.deadline
             ):
                 raise ValueError("task correlation fields disagree with verification payload")
-            model = GoogleGenAIClient(model=settings.gemini_model, budget=budget)
+            model = build_model_client(settings, budget)
             dependencies = VerificationDependencies(http=http, model=model, policy=policy)
             headers = task.trace_headers or {}
             transaction = sentry_sdk.continue_trace(

@@ -397,6 +397,8 @@ class AuditReport(StrictModel):
     coverage: Coverage | None = None
     errors: list[TypedError] = Field(default_factory=list)
     source_versions: dict[str, str] = Field(default_factory=dict)
+    model_provider: str = "unknown"
+    configured_model: str = "unknown"
     model_versions: dict[str, str] = Field(default_factory=dict)
     timestamps: dict[str, datetime] = Field(default_factory=dict)
     timings: dict[str, float] = Field(default_factory=dict)

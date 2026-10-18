@@ -14,11 +14,27 @@ class Settings:
     sentry_environment: str = "development"
     sentry_traces_sample_rate: float = 0.0
     runtime_dir: Path = Path("runtime")
+    model_provider: str = "ollama"
+    ollama_model: str = "qwen2.5vl:3b"
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    workflow_deadline_seconds: int = 600
+
+    def __post_init__(self) -> None:
+        if self.model_provider not in {"ollama", "gemini"}:
+            raise ValueError("ADPROOF_MODEL_PROVIDER must be 'ollama' or 'gemini'")
+
+    @property
+    def active_model(self) -> str:
+        return self.ollama_model if self.model_provider == "ollama" else self.gemini_model
 
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
+            model_provider=os.getenv("ADPROOF_MODEL_PROVIDER", "ollama"),
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+            ollama_model=os.getenv("OLLAMA_MODEL") or "qwen2.5vl:3b",
+            ollama_base_url=os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434",
+            workflow_deadline_seconds=int(os.getenv("ADPROOF_WORKFLOW_DEADLINE_SECONDS", "600")),
             sentry_dsn=os.getenv("SENTRY_DSN") or None,
             sentry_environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
             sentry_traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0")),

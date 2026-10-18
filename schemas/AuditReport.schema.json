@@ -947,6 +947,11 @@
       "title": "Audit Id",
       "type": "string"
     },
+    "configured_model": {
+      "default": "unknown",
+      "title": "Configured Model",
+      "type": "string"
+    },
     "coverage": {
       "anyOf": [
         {
@@ -973,6 +978,11 @@
     },
     "final_decision_basis": {
       "title": "Final Decision Basis",
+      "type": "string"
+    },
+    "model_provider": {
+      "default": "unknown",
+      "title": "Model Provider",
       "type": "string"
     },
     "model_versions": {

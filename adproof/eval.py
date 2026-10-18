@@ -15,7 +15,7 @@ from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.store import SQLiteStore
 from adproof.infrastructure.telemetry import initialize_telemetry
 from adproof.inspector.inspector import ImageInspector
-from adproof.model_client import GoogleGenAIClient
+from adproof.model_client import build_model_client
 from adproof.orchestrator.gateway import LocalGateway
 from adproof.orchestrator.workflow import WorkflowDependencies, run_campaign
 from adproof.verifier.policy import PolicyEngine
@@ -50,7 +50,7 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
     settings = Settings.from_env()
     initialize_telemetry(settings, role="evaluation")
     budget = ModelCallBudget(max_model_calls)
-    model = GoogleGenAIClient(model=settings.gemini_model, budget=budget)
+    model = build_model_client(settings, budget)
     inspector = ImageInspector(model)
     policy = PolicyEngine.from_files(
         ROOT / "data/policies/catalog.json",
@@ -66,7 +66,8 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 results.append(
                     {
                         "case": case_number,
-                        "configured_model": settings.gemini_model,
+                        "model_provider": settings.model_provider,
+                        "configured_model": settings.active_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": "SKIPPED",
                         "skip_reason": "shared model-call budget exhausted",
@@ -111,7 +112,8 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 results.append(
                     {
                         "case": case_number,
-                        "configured_model": settings.gemini_model,
+                        "model_provider": settings.model_provider,
+                        "configured_model": settings.active_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": report.final_decision.value,
                         "workflow_status": report.workflow_status.value,
@@ -140,7 +142,8 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                 results.append(
                     {
                         "case": case_number,
-                        "configured_model": settings.gemini_model,
+                        "model_provider": settings.model_provider,
+                        "configured_model": settings.active_model,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": "ERROR",
                         "error_type": type(exc).__name__,
@@ -154,7 +157,8 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
     result = {
         "run_id": run_id,
         "timestamp": datetime.now(UTC).isoformat(),
-        "configured_model": settings.gemini_model,
+        "model_provider": settings.model_provider,
+        "configured_model": settings.active_model,
         "reported_model_versions": sorted(
             {version for result in results for version in result.get("reported_model_versions", [])}
         ),
@@ -171,12 +175,12 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Opt-in, bounded live evaluation.")
-    parser.add_argument("--live", action="store_true", help="allow paid external model calls")
+    parser.add_argument("--live", action="store_true", help="run the configured live model")
     parser.add_argument("--cases", default="1,2,3,4")
     parser.add_argument("--max-model-calls", type=int, default=20)
     args = parser.parse_args()
     if not args.live:
-        parser.error("pass --live to enable paid model inference")
+        parser.error("pass --live to enable live model inference")
     if not 1 <= args.max_model_calls <= 40:
         parser.error("--max-model-calls must be in the range 1..40")
     try:
