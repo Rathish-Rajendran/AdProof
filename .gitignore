@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Secrets and private runtime state
+.env
+.env.*
+!.env.example
+runtime/
+*.seed
+*.sqlite
+*.sqlite3
+*.db
