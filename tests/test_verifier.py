@@ -8,11 +8,12 @@ from adproof.domain.models import (
     ClaimType,
     InspectionStatus,
     Phase,
+    TypedError,
     TypedErrorCode,
     VerificationRequest,
 )
 from adproof.infrastructure.safe_http import FetchedSource
-from adproof.model_client import FakeModelClient
+from adproof.model_client import FakeModelClient, ModelClientError
 from adproof.verifier.policy import PolicyEngine
 from adproof.verifier.verifier import (
     VerificationDependencies,
@@ -134,6 +135,25 @@ async def test_injected_quote_is_rejected_as_invalid_evidence_and_routes_to_revi
         VerificationDependencies(http=StaticHttp(), model=model, policy=policy()),  # type: ignore[arg-type]
     )
     assert TypedErrorCode.INVALID_EVIDENCE in {error.code for error in result.errors}
+    assert result.decision.value == "HUMAN_REVIEW"
+
+
+@pytest.mark.asyncio
+async def test_model_unavailable_returns_incomplete_audit_for_human_review():
+    model = FakeModelClient(
+        [
+            ModelClientError(
+                TypedError(code=TypedErrorCode.MODEL_UNAVAILABLE, message="Gemini unavailable")
+            )
+        ]
+    )
+
+    result = await verify_campaign(
+        request("AeroBeat headphones."),
+        VerificationDependencies(http=StaticHttp(), model=model, policy=policy()),  # type: ignore[arg-type]
+    )
+
+    assert TypedErrorCode.MODEL_UNAVAILABLE in {error.code for error in result.errors}
     assert result.decision.value == "HUMAN_REVIEW"
 
 

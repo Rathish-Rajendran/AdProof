@@ -149,6 +149,7 @@ async def verify_campaign(
     claims: list[Claim] = []
     issues: list[Issue] = []
     ignored: list[dict[str, str]] = []
+    evidence_by_quote: dict[tuple[int, str], Evidence] = {}
     try:
         async with dependencies.model_semaphore:
             extraction = await dependencies.model.generate_json(
@@ -200,7 +201,6 @@ async def verify_campaign(
             purpose="evidence_assessment",
         )
         assessments = {item.claim_id: item for item in assessment_data.data.assessments}
-        evidence_by_quote: dict[tuple[int, str], Evidence] = {}
         for item in proposed:
             assessment = assessments.get(item.id)
             if assessment is None:
