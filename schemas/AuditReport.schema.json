@@ -985,6 +985,13 @@
       "title": "Model Provider",
       "type": "string"
     },
+    "model_specs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Model Specs",
+      "type": "object"
+    },
     "model_versions": {
       "additionalProperties": {
         "type": "string"

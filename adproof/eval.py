@@ -4,11 +4,12 @@ import argparse
 import asyncio
 import json
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from adproof.domain.models import CampaignInput, ExecutionMode
+from adproof.domain.models import CampaignInput, ExecutionMode, TypedErrorCode
 from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.safe_http import SafeHttpClient
 from adproof.infrastructure.settings import Settings
@@ -46,6 +47,10 @@ def _reported_model_versions(calls: list[dict[str, Any]]) -> list[str]:
     )
 
 
+def _calls_by_job(calls: list[dict[str, Any]]) -> dict[str, int]:
+    return dict(sorted(Counter(str(call["purpose"]) for call in calls).items()))
+
+
 async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> dict[str, Any]:
     settings = Settings.from_env()
     initialize_telemetry(settings, role="evaluation")
@@ -72,6 +77,7 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                         "actual_decision": "SKIPPED",
                         "skip_reason": "shared model-call budget exhausted",
                         "reported_model_versions": [],
+                        "model_calls_by_job": {},
                         "calls": [],
                     }
                 )
@@ -127,9 +133,34 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                             for evidence_id in claim.evidence_ids
                         ),
                         "model_versions": report.model_versions,
+                        "model_specs": report.model_specs,
                         "reported_model_versions": _reported_model_versions(case_calls),
                         "model_call_count": len(case_calls),
+                        "model_calls_by_job": _calls_by_job(case_calls),
                         "calls": case_calls,
+                        "original_issues": (
+                            [
+                                issue.model_dump(mode="json")
+                                for issue in report.original_audit.issues
+                            ]
+                            if report.original_audit
+                            else []
+                        ),
+                        "revised_issues": (
+                            [issue.model_dump(mode="json") for issue in report.revised_audit.issues]
+                            if report.revised_audit
+                            else []
+                        ),
+                        "invalid_evidence_errors": [
+                            error.model_dump(mode="json")
+                            for audit in (report.original_audit, report.revised_audit)
+                            if audit
+                            for error in audit.errors
+                            if error.code == TypedErrorCode.INVALID_EVIDENCE
+                        ],
+                        "repair_copy": (
+                            report.repair_proposal.repaired_copy if report.repair_proposal else None
+                        ),
                         "timings_seconds": {
                             "workflow": report.timings.get("total_seconds"),
                             "wall": (datetime.now(UTC) - started).total_seconds(),
@@ -144,11 +175,13 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
                         "case": case_number,
                         "model_provider": settings.model_provider,
                         "configured_model": settings.active_model,
+                        "model_specs": settings.model_specs,
                         "expected_decision": EXPECTED_DECISIONS[case_number],
                         "actual_decision": "ERROR",
                         "error_type": type(exc).__name__,
                         "reported_model_versions": _reported_model_versions(case_calls),
                         "model_call_count": len(case_calls),
+                        "model_calls_by_job": _calls_by_job(case_calls),
                         "calls": case_calls,
                     }
                 )
@@ -159,6 +192,7 @@ async def run_live_evaluation(case_numbers: list[int], max_model_calls: int) -> 
         "timestamp": datetime.now(UTC).isoformat(),
         "model_provider": settings.model_provider,
         "configured_model": settings.active_model,
+        "model_specs": settings.model_specs,
         "reported_model_versions": sorted(
             {version for result in results for version in result.get("reported_model_versions", [])}
         ),

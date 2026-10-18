@@ -50,6 +50,7 @@ async def live_smoke(max_model_calls: int) -> int:
         inspections.append(
             {
                 "fixture": name,
+                "model_spec": settings.model_spec_for("image_inspection"),
                 "status": result.status.value,
                 "model_version": result.model_version,
                 "observations": [item.model_dump(mode="json") for item in result.observations],
@@ -98,6 +99,7 @@ async def live_smoke(max_model_calls: int) -> int:
             "decision": report.final_decision.value,
             "workflow_status": report.workflow_status.value,
             "model_versions": report.model_versions,
+            "model_specs": report.model_specs,
             "trace_parent": trace_id,
             "errors": [error.model_dump(mode="json") for error in report.errors],
         }
@@ -105,6 +107,7 @@ async def live_smoke(max_model_calls: int) -> int:
     result = {
         "model_provider": settings.model_provider,
         "configured_model": settings.active_model,
+        "model_specs": settings.model_specs,
         "model_calls_used": budget.consumed,
         "model_call_limit": max_model_calls,
         "calls": model.call_records,

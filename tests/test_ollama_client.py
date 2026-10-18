@@ -16,6 +16,7 @@ from adproof.infrastructure.settings import Settings
 from adproof.model_client import (
     ModelClientError,
     OllamaClient,
+    RoutingModelClient,
     build_model_client,
 )
 
@@ -214,42 +215,43 @@ async def test_ollama_404_reports_model_not_pulled_without_retry() -> None:
     assert error.value.error.message == "Ollama model missing-model is not pulled"
 
 
-def test_model_client_factory_uses_selected_provider(monkeypatch) -> None:
-    class StubOllama:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    class StubGemini:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    monkeypatch.setattr(model_module, "OllamaClient", StubOllama)
-    monkeypatch.setattr(model_module, "GoogleGenAIClient", StubGemini)
+def test_model_client_factory_returns_lazy_router() -> None:
     budget = ModelCallBudget(3)
 
     ollama = build_model_client(Settings(), budget)
-    gemini = build_model_client(Settings(model_provider="gemini"), budget)
 
-    assert isinstance(ollama, StubOllama)
-    assert ollama.kwargs == {
-        "model": "qwen2.5vl:3b",
-        "base_url": "http://127.0.0.1:11434",
-        "budget": budget,
-    }
-    assert isinstance(gemini, StubGemini)
-    assert gemini.kwargs == {"model": "gemini-3.5-flash", "budget": budget}
+    assert isinstance(ollama, RoutingModelClient)
+    assert ollama.budget is budget
+    assert ollama._clients == {}
 
 
-def test_gemini_provider_without_api_key_raises_model_auth(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_gemini_spec_without_key_fails_only_when_job_is_called(monkeypatch) -> None:
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    model = build_model_client(
+        Settings(
+            model_default="ollama:qwen2.5:7b",
+            model_evidence_assessment="gemini:gemini-3.5-flash",
+        )
+    )
+
+    assert isinstance(model, RoutingModelClient)
+    assert model._clients == {}
 
     with pytest.raises(ModelClientError) as error:
-        build_model_client(Settings(model_provider="gemini"))
+        await model.generate_json(
+            ["return JSON"],
+            _Output,
+            deadline=_deadline(),
+            purpose="evidence_assessment",
+        )
 
     assert error.value.error.code == TypedErrorCode.MODEL_AUTH
+    assert model._clients == {}
 
 
 def test_invalid_model_provider_raises_value_error(monkeypatch) -> None:
+    monkeypatch.delenv("ADPROOF_MODEL_DEFAULT", raising=False)
     monkeypatch.setenv("ADPROOF_MODEL_PROVIDER", "unknown")
 
     with pytest.raises(ValueError, match="ADPROOF_MODEL_PROVIDER"):

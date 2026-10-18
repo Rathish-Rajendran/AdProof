@@ -153,6 +153,7 @@ async def run_campaign(
                 repair_verified=False,
                 model_provider=dependencies.settings.model_provider,
                 configured_model=dependencies.settings.active_model,
+                model_specs=dependencies.settings.model_specs,
                 errors=errors,
                 timestamps=timestamps,
             )
@@ -366,6 +367,7 @@ async def run_campaign(
             },
             model_provider=dependencies.settings.model_provider,
             configured_model=dependencies.settings.active_model,
+            model_specs=dependencies.settings.model_specs,
             model_versions=model_versions,
             timestamps={**timestamps, "completed": datetime.now(UTC)},
             timings={"total_seconds": asyncio.get_running_loop().time() - started},

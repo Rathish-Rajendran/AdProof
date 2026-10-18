@@ -7,7 +7,7 @@ import os
 import random
 import re
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -17,7 +17,7 @@ from pydantic import BaseModel, ValidationError
 
 from adproof.domain.models import TypedError, TypedErrorCode
 from adproof.infrastructure.budget import BudgetExhausted, ModelCallBudget
-from adproof.infrastructure.settings import Settings
+from adproof.infrastructure.settings import ModelSpec, Settings
 from adproof.infrastructure.telemetry import record_event
 
 PROMPT_SCHEMA_VERSION = "1"
@@ -63,10 +63,12 @@ class GoogleGenAIClient:
         api_key: str | None = None,
         model: str = "gemini-3.5-flash",
         budget: ModelCallBudget | None = None,
+        record_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self.model = model
         self.budget = budget
         self.call_records: list[dict[str, Any]] = []
+        self._record_callback = record_callback
         key = api_key if api_key is not None else os.getenv("GEMINI_API_KEY")
         if not key:
             raise ModelClientError(
@@ -86,6 +88,11 @@ class GoogleGenAIClient:
                     retryable=True,
                 )
             ) from exc
+
+    def _record_call(self, record: dict[str, Any]) -> None:
+        self.call_records.append(record)
+        if self._record_callback is not None:
+            self._record_callback(record)
 
     async def generate_json(
         self,
@@ -140,7 +147,7 @@ class GoogleGenAIClient:
                     timeout=remaining,
                 )
             except TimeoutError as exc:
-                self.call_records.append(
+                self._record_call(
                     {
                         "purpose": purpose,
                         "model": self.model,
@@ -173,7 +180,7 @@ class GoogleGenAIClient:
                     else TypedErrorCode.MODEL_UNAVAILABLE
                 )
                 retryable = code == TypedErrorCode.MODEL_UNAVAILABLE and not quota_exhausted
-                self.call_records.append(
+                self._record_call(
                     {
                         "purpose": purpose,
                         "model": self.model,
@@ -216,7 +223,7 @@ class GoogleGenAIClient:
                 parsed = json.loads(response.text or "")
                 data = _validate_output(parsed, schema)
             except (json.JSONDecodeError, ValidationError, TypeError) as exc:
-                self.call_records.append(
+                self._record_call(
                     {
                         "purpose": purpose,
                         "model": self.model,
@@ -240,7 +247,7 @@ class GoogleGenAIClient:
                 "candidate_tokens": getattr(usage, "candidates_token_count", None),
             }
             reported_model_version = getattr(response, "model_version", None)
-            self.call_records.append(
+            self._record_call(
                 {
                     "purpose": purpose,
                     "model": reported_model_version or self.model,
@@ -265,12 +272,19 @@ class OllamaClient:
         base_url: str = "http://127.0.0.1:11434",
         budget: ModelCallBudget | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        record_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.budget = budget
         self.transport = transport
         self.call_records: list[dict[str, Any]] = []
+        self._record_callback = record_callback
+
+    def _record_call(self, record: dict[str, Any]) -> None:
+        self.call_records.append(record)
+        if self._record_callback is not None:
+            self._record_callback(record)
 
     async def generate_json(
         self,
@@ -336,7 +350,7 @@ class OllamaClient:
                         timeout=remaining,
                     )
                 except TimeoutError as exc:
-                    self.call_records.append(
+                    self._record_call(
                         {
                             "purpose": purpose,
                             "model": self.model,
@@ -353,7 +367,7 @@ class OllamaClient:
                         )
                     ) from exc
                 except httpx.TransportError as exc:
-                    self.call_records.append(
+                    self._record_call(
                         {
                             "purpose": purpose,
                             "model": self.model,
@@ -389,7 +403,7 @@ class OllamaClient:
                 response_text = response.text
                 model_not_found = "model not found" in response_text.casefold()
                 if response.status_code == 404 or model_not_found:
-                    self.call_records.append(
+                    self._record_call(
                         {
                             "purpose": purpose,
                             "model": self.model,
@@ -408,7 +422,7 @@ class OllamaClient:
                         )
                     )
                 if response.status_code >= 500:
-                    self.call_records.append(
+                    self._record_call(
                         {
                             "purpose": purpose,
                             "model": self.model,
@@ -442,7 +456,7 @@ class OllamaClient:
                         )
                     )
                 if response.is_error:
-                    self.call_records.append(
+                    self._record_call(
                         {
                             "purpose": purpose,
                             "model": self.model,
@@ -478,7 +492,7 @@ class OllamaClient:
                     parsed = json.loads(message["content"])
                     data = _validate_output(parsed, schema)
                 except (json.JSONDecodeError, KeyError, TypeError, ValidationError) as exc:
-                    self.call_records.append(
+                    self._record_call(
                         {
                             "purpose": purpose,
                             "model": self.model,
@@ -505,7 +519,7 @@ class OllamaClient:
                     if isinstance(candidate_tokens, int)
                     else None,
                 }
-                self.call_records.append(
+                self._record_call(
                     {
                         "purpose": purpose,
                         "model": self.model,
@@ -522,16 +536,59 @@ class OllamaClient:
                 )
 
 
-def build_model_client(settings: Settings, budget: ModelCallBudget | None = None) -> ModelClient:
-    if settings.model_provider == "ollama":
-        return OllamaClient(
-            model=settings.ollama_model,
-            base_url=settings.ollama_base_url,
-            budget=budget,
+class RoutingModelClient(ModelClient):
+    def __init__(self, settings: Settings, budget: ModelCallBudget | None = None):
+        self.settings = settings
+        self.budget = budget
+        self._clients: dict[str, ModelClient] = {}
+        self.call_records: list[dict[str, Any]] = []
+
+    def _record_call(self, spec: ModelSpec, record: dict[str, Any]) -> None:
+        self.call_records.append({**record, "provider": spec.provider, "model_spec": str(spec)})
+
+    def _client_for(self, purpose: str) -> ModelClient:
+        spec = ModelSpec.parse(self.settings.model_spec_for(purpose))
+        key = str(spec)
+        client = self._clients.get(key)
+        if client is None:
+
+            def callback(record: dict[str, Any]) -> None:
+                self._record_call(spec, record)
+
+            if spec.provider == "ollama":
+                client = OllamaClient(
+                    model=spec.model,
+                    base_url=self.settings.ollama_base_url,
+                    budget=self.budget,
+                    record_callback=callback,
+                )
+            else:
+                client = GoogleGenAIClient(
+                    model=spec.model,
+                    budget=self.budget,
+                    record_callback=callback,
+                )
+            self._clients[key] = client
+        return client
+
+    async def generate_json(
+        self,
+        prompt_parts: Sequence[str | tuple[bytes, str]],
+        schema: type[BaseModel] | dict[str, Any],
+        *,
+        deadline: datetime,
+        purpose: str,
+    ) -> ModelResponse:
+        return await self._client_for(purpose).generate_json(
+            prompt_parts,
+            schema,
+            deadline=deadline,
+            purpose=purpose,
         )
-    if settings.model_provider == "gemini":
-        return GoogleGenAIClient(model=settings.gemini_model, budget=budget)
-    raise ValueError("ADPROOF_MODEL_PROVIDER must be 'ollama' or 'gemini'")
+
+
+def build_model_client(settings: Settings, budget: ModelCallBudget | None = None) -> ModelClient:
+    return RoutingModelClient(settings, budget)
 
 
 class FakeModelClient:
