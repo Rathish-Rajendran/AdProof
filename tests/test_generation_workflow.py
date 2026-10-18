@@ -42,6 +42,7 @@ from adproof.verifier.verifier import (
     VerificationDependencies,
     _Assessment,
     _AssessmentOutput,
+    _claim_extraction_prompt,
     _ClaimExtraction,
     _ExtractedClaim,
     verify_campaign,
@@ -56,13 +57,13 @@ PAGE_TEXT = (
 
 
 class FakeCorpusIndex:
-    def __init__(self):
+    def __init__(self, page_text=PAGE_TEXT):
         self.document = CorpusDocument(
             "aerobeat-ab01-product",
             "AeroBeat AB-01",
             PAGE_URL,
             "product_page",
-            PAGE_TEXT,
+            page_text,
             "document-sha",
         )
         self.chunk = CorpusChunk(
@@ -71,7 +72,7 @@ class FakeCorpusIndex:
             self.document.title,
             "Product facts",
             PAGE_URL,
-            PAGE_TEXT,
+            page_text,
             "chunk-sha",
         )
 
@@ -532,6 +533,21 @@ def _assessment(status: ClaimStatus, quote: str) -> _Assessment:
     )
 
 
+class CapturingFakeModelClient(FakeModelClient):
+    def __init__(self, responses):
+        super().__init__(responses, model_version="capturing-fake")
+        self.prompts = []
+
+    async def generate_json(self, prompt_parts, schema, *, deadline, purpose):
+        self.prompts.append((purpose, list(prompt_parts)))
+        return await super().generate_json(
+            prompt_parts,
+            schema,
+            deadline=deadline,
+            purpose=purpose,
+        )
+
+
 def _validate_check_payloads(report):
     payloads = [
         (
@@ -778,13 +794,7 @@ async def test_image_check_can_fix_text_and_invalid_images_return_safe_json():
         "",
         index=FakeCorpusIndex(),
         model=_check_model(
-            initial_claims=[
-                _text_claim(
-                    "completely waterproof",
-                    source=ClaimSource.IMAGE,
-                    observation_id="obs-1",
-                )
-            ],
+            initial_claims=[_text_claim("completely waterproof")],
             initial_assessments=[_assessment(ClaimStatus.CONTRADICTED, "not waterproof")],
             repaired_copy="AeroBeat AB-01 is splash-resistant for everyday use.",
             final_claims=[_text_claim("splash-resistant for everyday use")],
@@ -835,3 +845,133 @@ async def test_image_check_can_fix_text_and_invalid_images_return_safe_json():
     )
     assert failure["needs_review"] is True
     assert failure["ad"] is None
+
+
+def test_corpus_claim_extraction_prompt_uses_only_ad_text():
+    request = _request("AeroBeat AB-01 is 100% waterproof.").model_copy(
+        update={
+            "image_observations": [
+                Observation(
+                    observation_id="obs-1",
+                    kind=ObservationKind.VISIBLE_TEXT,
+                    text="The text '100% Waterproof' is visible in the image.",
+                )
+            ]
+        }
+    )
+    prompt = _claim_extraction_prompt(
+        request,
+        observation_text=["obs-1 (visible_text): The text '100% Waterproof' is visible."],
+        source_excerpt="AeroBeat AB-01 product page title",
+    )
+    prompt_text = "\n".join(prompt)
+
+    assert prompt[-1] == "AD COPY:\nAeroBeat AB-01 is 100% waterproof."
+    assert "100% Waterproof" not in prompt_text
+    assert "SUPPLIED SOURCE EXCERPTS" not in prompt_text
+    assert "only identify a brand or matched product by name" in prompt_text
+    assert "performance, prices, discounts, endorsements, and offers" in prompt_text
+
+
+@pytest.mark.asyncio
+async def test_corpus_image_extraction_ignores_image_claims_and_keeps_price_consistency():
+    page_text = PAGE_TEXT + " Regular price $80. Current price $60."
+    index = FakeCorpusIndex(page_text)
+    observation_text = "Only $49 - 50% OFF!"
+    request = _request("AeroBeat AB-01 headphones are completely waterproof.").model_copy(
+        update={
+            "image_inspection_status": InspectionStatus.COMPLETE,
+            "image_observations": [
+                Observation(
+                    observation_id="obs-offer",
+                    kind=ObservationKind.VISIBLE_TEXT,
+                    text=observation_text,
+                )
+            ],
+        }
+    )
+    model = CapturingFakeModelClient(
+        [
+            _ClaimExtraction(
+                claims=[
+                    _text_claim("The AeroBeat AB-01 is completely waterproof."),
+                    _text_claim(
+                        "The text '100% Waterproof' is visible in the image.",
+                        source=ClaimSource.IMAGE,
+                        observation_id="obs-offer",
+                    ),
+                ]
+            ),
+            _AssessmentOutput(
+                assessments=[
+                    _assessment(ClaimStatus.CONTRADICTED, "not waterproof"),
+                ]
+            ),
+        ]
+    )
+
+    result = await verify_campaign(
+        request,
+        VerificationDependencies(
+            http=None,  # type: ignore[arg-type]
+            model=model,
+            policy=_policy(),
+            corpus_index=index,
+        ),
+    )
+    extraction_prompt = "\n".join(str(part) for part in model.prompts[0][1])
+
+    assert "visible in the image" not in extraction_prompt
+    assert observation_text not in extraction_prompt
+    assert [claim.claim for claim in result.claims if claim.id.startswith("claim-")] == [
+        "The AeroBeat AB-01 is completely waterproof."
+    ]
+    assert not any("visible in the image" in claim.claim for claim in result.claims)
+    assert sum(issue.subtype == "IMAGE_OFFER_MISMATCH" for issue in result.issues) == 1
+
+
+@pytest.mark.asyncio
+async def test_product_identity_can_be_supported_by_matched_page_title():
+    index = FakeCorpusIndex()
+    index.chunk = CorpusChunk(
+        index.chunk.chunk_id,
+        index.chunk.doc_id,
+        index.chunk.title,
+        index.chunk.heading,
+        index.chunk.url,
+        f"{index.document.title}\n{index.chunk.text}",
+        index.chunk.sha256,
+    )
+    model = CapturingFakeModelClient(
+        [
+            _ClaimExtraction(
+                claims=[_text_claim("The product is named AeroBeat AB-01.")],
+            ),
+            _AssessmentOutput(
+                assessments=[
+                    _Assessment(
+                        claim_id="claim-1",
+                        status=ClaimStatus.SUPPORTED,
+                        source_index=1,
+                        quote="AeroBeat AB-01",
+                        explanation="The matched product page title names the product.",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    result = await verify_campaign(
+        _request("AeroBeat AB-01 headphones."),
+        VerificationDependencies(
+            http=None,  # type: ignore[arg-type]
+            model=model,
+            policy=_policy(),
+            corpus_index=index,
+        ),
+    )
+
+    assert result.claims[0].status == ClaimStatus.SUPPORTED
+    assert any(item.excerpt == "AeroBeat AB-01" for item in result.evidence)
+    assessment_prompt = "\n".join(str(part) for part in model.prompts[1][1])
+    assert "product-page title or a direct line naming the product" in assessment_prompt

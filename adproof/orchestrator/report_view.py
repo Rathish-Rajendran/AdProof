@@ -6,6 +6,7 @@ The result follows the workflow: original check -> fix -> independent re-check -
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, TypedDict
@@ -18,6 +19,8 @@ from adproof.domain.models import (
     Decision,
     Evidence,
     PolicyReviewStatus,
+    TypedError,
+    TypedErrorCode,
     VerificationResult,
 )
 from adproof.rag.chunker import CorpusChunk, CorpusDocument, chunk_document, load_corpus
@@ -389,6 +392,17 @@ def _compliance_summary(
         return "OK"
 
     failed_claim_ids: set[str] = set()
+    issue_claim_ids = {
+        issue.claim_id for issue in (audit.issues if audit is not None else []) if issue.claim_id
+    }
+    image_offer_claim_ids = {
+        issue.claim_id
+        for issue in (audit.issues if audit is not None else [])
+        if issue.claim_id and issue.subtype == "IMAGE_OFFER_MISMATCH"
+    }
+    seen_claim_facts: set[str] = set()
+    seen_message_keys: set[str] = set()
+    image_offer_mismatch_added = False
     messages: list[str] = []
     for check in failed_checks:
         name = check["name"]
@@ -413,7 +427,21 @@ def _compliance_summary(
                     if claim.status == ClaimStatus.CONTRADICTED
                     else "not backed by company data"
                 )
-                message = f"Claim ‘{claim.claim}’ is {state}: {claim.explanation}"
+                if claim.id in image_offer_claim_ids:
+                    message = (
+                        None
+                        if image_offer_mismatch_added
+                        else claim.explanation
+                        or "Visible image offer differs from the supplied landing-page price."
+                    )
+                    image_offer_mismatch_added = True
+                else:
+                    fact_key = _compliance_key(claim.claim)
+                    if fact_key in seen_claim_facts:
+                        message = None
+                    else:
+                        seen_claim_facts.add(fact_key)
+                        message = f"Claim ‘{claim.claim}’ is {state}: {claim.explanation}"
         elif name.startswith("policy: "):
             message = f"Breaks {name.removeprefix('policy: ')}"
         elif name == "no_unresolved_issues":
@@ -424,16 +452,66 @@ def _compliance_summary(
                 else reason or "An unresolved issue remains."
             )
         elif name == "no_processing_errors":
-            message = reason or "Processing did not finish."
+            quote_error = _corpus_quote_error(audit, reason)
+            if quote_error is None:
+                message = reason or "Processing did not finish."
+            else:
+                quote_claim = _claim_for_quote_error(audit, quote_error)
+                if quote_claim is not None and (
+                    quote_claim.id in failed_claim_ids or quote_claim.id in issue_claim_ids
+                ):
+                    message = None
+                elif quote_claim is not None:
+                    message = (
+                        "One claim's quote couldn't be confirmed in the company data: "
+                        f"‘{quote_claim.claim}’."
+                    )
+                else:
+                    message = "One claim's quote couldn't be confirmed in the company data."
         elif name.startswith("coverage: "):
             message = reason or "Coverage was not completed."
         elif name == "verification":
             message = reason or "Verification did not finish."
         else:
             message = reason or "The check did not pass."
-        if message and message not in messages:
+        message_key = _compliance_key(message) if message else ""
+        if message and message_key not in seen_message_keys:
             messages.append(message)
+            seen_message_keys.add(message_key)
     return messages or ["The final audit needs review."]
+
+
+def _compliance_key(value: str) -> str:
+    return re.sub(r"[^\w]+", " ", value.casefold()).strip()
+
+
+def _corpus_quote_error(
+    audit: VerificationResult | None,
+    reason: str | None,
+) -> TypedError | None:
+    if audit is None or reason is None:
+        return None
+    for error in audit.errors:
+        if error.code != TypedErrorCode.INVALID_EVIDENCE or error.message != reason:
+            continue
+        if "retrieved corpus source" in error.message:
+            return error
+    return None
+
+
+def _claim_for_quote_error(
+    audit: VerificationResult | None,
+    error: TypedError,
+):
+    if audit is None:
+        return None
+    claim_id = error.details.get("claim_id")
+    if not claim_id:
+        match = re.search(r"\b(claim-\d+)\b", error.message)
+        claim_id = match.group(1) if match else None
+    if not claim_id:
+        return None
+    return next((claim for claim in audit.claims if claim.id == claim_id), None)
 
 
 @lru_cache(maxsize=1)

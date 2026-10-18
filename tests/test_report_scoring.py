@@ -282,6 +282,140 @@ def test_contradicted_claim_is_a_plain_language_compliance_item():
     assert result["claims"] == []
 
 
+def test_compliance_deduplicates_image_offer_and_repeated_contradicted_facts():
+    image_issue_message = "Visible image offer differs from the supplied landing-page price."
+    image_offer = _claim(
+        ClaimStatus.CONTRADICTED,
+        text="Only $49 - 50% OFF!",
+    ).model_copy(
+        update={
+            "id": "image-claim-offer",
+            "source": ClaimSource.IMAGE,
+            "claim_type": ClaimType.PRICE,
+            "explanation": image_issue_message,
+        }
+    )
+    compound_image_offer = _claim(
+        ClaimStatus.CONTRADICTED,
+        text=(
+            "The AeroBeat AB-01 headphones are waterproof, have a 48-hour battery life, "
+            "cost $49, and are 50% off."
+        ),
+    ).model_copy(
+        update={
+            "id": "image-claim-compound",
+            "source": ClaimSource.IMAGE,
+            "claim_type": ClaimType.PRICE,
+            "explanation": image_issue_message,
+        }
+    )
+    price_claim = _claim(
+        ClaimStatus.CONTRADICTED,
+        text="The AB-01 costs $49.",
+    ).model_copy(
+        update={
+            "id": "claim-price-1",
+            "explanation": "The page price is $60.",
+        }
+    )
+    duplicate_price_claim = _claim(
+        ClaimStatus.CONTRADICTED,
+        text="THE AB-01 costs $49!",
+    ).model_copy(
+        update={
+            "id": "claim-price-2",
+            "explanation": "The page price is $60.",
+        }
+    )
+    issues = [
+        Issue(
+            id=f"issue-{claim.id}",
+            claim_id=claim.id,
+            category=IssueCategory.PRICE_DISCOUNT_MISMATCH,
+            subtype="IMAGE_OFFER_MISMATCH",
+            severity=Severity.HIGH,
+            explanation=image_issue_message,
+            action=IssueAction.FIX,
+        )
+        for claim in (image_offer, compound_image_offer)
+    ]
+
+    result = report_summary(
+        _report(
+            Decision.FIX_REQUIRED,
+            claims=[image_offer, compound_image_offer, price_claim, duplicate_price_claim],
+            issues=issues,
+        )
+    )
+
+    assert result["compliance"] == [
+        image_issue_message,
+        "Claim ‘The AB-01 costs $49.’ is contradicted: The page price is $60.",
+    ]
+
+
+def test_invalid_corpus_quote_error_is_dropped_when_claim_issue_is_listed():
+    claim = _claim(
+        ClaimStatus.INSUFFICIENT_EVIDENCE,
+        evidence_ids=[],
+        text="The AeroBeat AB-01 is completely waterproof.",
+    )
+    issue = Issue(
+        id="issue-claim-1",
+        claim_id=claim.id,
+        category=IssueCategory.UNSUPPORTED_OBJECTIVE_CLAIM,
+        severity=Severity.HIGH,
+        explanation="No company data supports this claim.",
+        action=IssueAction.REVIEW,
+    )
+    error = TypedError(
+        code=TypedErrorCode.INVALID_EVIDENCE,
+        message="Claim claim-1 quote did not occur in its retrieved corpus source.",
+        details={"claim_id": claim.id},
+    )
+
+    result = report_summary(
+        _report(
+            Decision.FIX_REQUIRED,
+            claims=[claim],
+            issues=[issue],
+            audit_errors=[error],
+        )
+    )
+
+    assert result["compliance"] == [
+        "Claim ‘The AeroBeat AB-01 is completely waterproof.’ is not backed by company data: "
+        "No evidence establishes this claim."
+    ]
+    assert "claim-1" not in json.dumps(result)
+
+
+def test_invalid_corpus_quote_error_without_claim_issue_uses_safe_claim_text():
+    claim = _claim(
+        ClaimStatus.SUPPORTED,
+        text="The product is named AeroBeat AB-01.",
+    )
+    error = TypedError(
+        code=TypedErrorCode.INVALID_EVIDENCE,
+        message="Claim claim-1 quote did not occur in its retrieved corpus source.",
+        details={"claim_id": claim.id},
+    )
+
+    result = report_summary(
+        _report(
+            Decision.PASS,
+            claims=[claim],
+            audit_errors=[error],
+        )
+    )
+
+    assert result["compliance"] == [
+        "One claim's quote couldn't be confirmed in the company data: "
+        "‘The product is named AeroBeat AB-01.’."
+    ]
+    assert "claim-1" not in json.dumps(result)
+
+
 def test_report_summary_escapes_no_ascii_double_quotes():
     claim = _claim(
         ClaimStatus.CONTRADICTED,
