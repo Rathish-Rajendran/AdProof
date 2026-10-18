@@ -193,7 +193,7 @@ docker compose ps
 docker compose logs orchestrator
 ```
 
-For the optional local Qwen service, uncomment the two Ollama model specs in `.env`, then enable the profile:
+For the optional local Qwen service, replace the two Gemini model specs in `.env` with the commented Ollama specs, then enable the profile:
 
 ```sh
 docker compose --profile ollama up --build -d ollama
