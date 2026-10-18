@@ -1,15 +1,29 @@
 services:
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   verifier:
     build: .
     command: ["uv", "run", "python", "-m", "agents.verifier.main"]
     env_file: .env
     environment:
       ADPROOF_RUNTIME_DIR: /runtime
+      OLLAMA_BASE_URL: http://ollama:11434
       VERIFIER_HOST: verifier
       ORCHESTRATOR_HOST: orchestrator
       REMEDIATOR_HOST: remediator
     volumes:
       - runtime:/runtime
+    depends_on:
+      ollama:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health', timeout=2)"]
       interval: 10s
@@ -22,11 +36,15 @@ services:
     env_file: .env
     environment:
       ADPROOF_RUNTIME_DIR: /runtime
+      OLLAMA_BASE_URL: http://ollama:11434
       VERIFIER_HOST: verifier
       ORCHESTRATOR_HOST: orchestrator
       REMEDIATOR_HOST: remediator
     volumes:
       - runtime:/runtime
+    depends_on:
+      ollama:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8102/health', timeout=2)"]
       interval: 10s
@@ -40,6 +58,7 @@ services:
     environment:
       ADPROOF_RUNTIME_DIR: /runtime
       ADPROOF_MAILBOX_ENABLED: ${ADPROOF_MAILBOX_ENABLED:-0}
+      OLLAMA_BASE_URL: http://ollama:11434
       ORCHESTRATOR_HOST: orchestrator
       VERIFIER_HOST: verifier
       REMEDIATOR_HOST: remediator
@@ -48,6 +67,8 @@ services:
     ports:
       - "8100:8100"
     depends_on:
+      ollama:
+        condition: service_healthy
       verifier:
         condition: service_healthy
       remediator:
@@ -60,3 +81,4 @@ services:
 
 volumes:
   runtime:
+  ollama_models:
