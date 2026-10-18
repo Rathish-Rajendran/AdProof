@@ -18,7 +18,7 @@ HTTP retrieval is HTTPS-only, port 443, DNS/peer-public-address checked, redirec
 
 ## Execution modes
 
-- `LIVE`: configured external model and real supplied sources; provider/auth/source errors remain visible, with no fixture fallback.
+- `LIVE`: configured model provider (Ollama by default, Gemini optionally) and real supplied sources; provider/auth/source errors remain visible, with no fixture fallback.
 - `MOCK`: explicit developer-only deterministic demo.
 - `TRANSPORT_TEST`: local ACP/session-delivery verification; it does not invoke the model.
 

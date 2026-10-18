@@ -1,5 +1,15 @@
 # Devin build log
 
+## User-approved Ollama default provider
+
+The user approved a temporary departure from the original Gemini-exclusive model-provider requirement: Ollama is now the default provider, with Gemini still selectable through environment configuration only. The default local model is `qwen2.5vl:3b`; it is not to be changed without user approval. This choice follows the user's CPU-only probes on an 8-core, 31 GB host: `qwen2.5vl:3b` correctly read the only-$49 image in 42 seconds including model load and split the unsafe copy into four atomic claims in 10 seconds. `gemma3:4b` also returned correct results but took 71 seconds and 46 seconds, respectively.
+
+Small local models may be less accurate than Gemini and slower on CPU. The workflow deadline is configurable and defaults to 600 seconds. Switching back to Gemini requires `ADPROOF_MODEL_PROVIDER=gemini`, `GEMINI_API_KEY`, and restarting the agents; no code change is needed.
+
+## 2026-10-18 — Ollama live evaluation
+
+The requested four-case evaluation ran with `ADPROOF_MODEL_PROVIDER=ollama`, `qwen2.5vl:3b`, and a 40-call budget. It used 13 calls. Cases 1, 2, and 4 returned `HUMAN_REVIEW` rather than the expected `FIX_REQUIRED`, `PASS`, and `PASS`; the model returned `INSUFFICIENT_EVIDENCE` for the extracted claims, and cases 1, 2, and 4 had partial image coverage. Case 2 also produced quotes rejected by the verifier because they did not occur in the normalized source. Case 3 returned the expected `FIX_REQUIRED`, but the original and revised audits did not report the `$49` image mismatch; its proposed copy retained the `50% off` claim and the endorsement. The artifact does not preserve raw image observations, so the exact reason the image mismatch was absent is unverified. These results show that the full workflow is materially less accurate than the user's isolated probes suggested. No prompt or default-model change was made; full per-case claim, timing, and artifact details are in `docs/validation-status.md`.
+
 ## 2026-10-18 — M0 through M4 implementation
 
 - Baseline repository commit `b580bd3` contained only the initial README and ignore rules; no live app or registered identities were present in this checkout.

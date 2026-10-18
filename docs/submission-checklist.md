@@ -14,10 +14,10 @@ Use the numbered [README workflow guide](../README.md) for reproducible setup, A
 ## Remaining human-owned submission steps
 
 - [ ] Confirm hackathon eligibility, team/project metadata, repository link, and submission requirements.
-- [ ] Restore Gemini quota (for example, enable billing), then resend `demo aerobeat` and confirm live re-verification completes.
+- [ ] Complete a live ASI:One re-verification. The prior user-reported run used Gemini and stopped on quota; either restore Gemini quota (for example, enable billing) or select the default Ollama provider, then resend `demo aerobeat`.
 - [ ] Run [README section 9](../README.md#9-always-on-hosting-docker) on an always-on host, reusing the same persistent `runtime/` seeds so the agent address and mailbox remain valid. Inject secrets privately.
 - [ ] To connect an agent mailbox, run the agent on its target machine and follow [README section 7](../README.md#7-connect-the-orchestrator-to-agentverse-mailbox) in a browser on that same machine. The inspector calls `127.0.0.1:8100`; opening it elsewhere targets that browser machine's loopback instead of the running agent. Confirm the mailbox-registration log message and active Almanac API response rather than inferring success from local startup.
-- [ ] After Gemini quota is restored, complete the workflow in [README section 8](../README.md#8-test-in-asione); retain a safe screenshot or shared conversation link with no credentials or private source data.
+- [ ] After model availability is confirmed, complete the workflow in [README section 8](../README.md#8-test-in-asione); retain a safe screenshot or shared conversation link with no credentials or private source data.
 - [x] Confirm Sentry project configuration and real Tracing/Logs ingestion from an authorized account; the user confirmed ingestion in Sentry on 2026-10-18.
 - [ ] Capture a short demo video, verify the actual duration, and show bounded scope, exact evidence, one copy-only repair, same-image re-verification, and any live failures honestly.
 - [ ] Review the policy catalog and its two ACTIVE engineering-reviewed checks; keep FTC entries DRAFT unless their sources are retrieved and independently reviewed.

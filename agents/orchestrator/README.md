@@ -9,6 +9,6 @@ Send `help` for supported plain-text commands:
 - `status <audit_id>` or `report <audit_id>` within the same owner/session
 - A fenced `CampaignInput` JSON object, or `Image:`, `Copy:`, and `Page:` fields
 
-Each audit is bounded by the workflow deadline, a model-call budget, a maximum of one repair, and a per-owner concurrency limit. LIVE execution requires the configured Gemini API key and never silently falls back to fixtures. Reports are bounded evidence summaries, not legal advice, legal review, platform certification, or a safety guarantee. Human review is required outside the implemented scope and when evidence or model availability is incomplete.
+Each audit is bounded by the configurable workflow deadline (600 seconds by default), a model-call budget, a maximum of one repair, and a per-owner concurrency limit. LIVE execution uses Ollama by default (`OLLAMA_MODEL=qwen2.5vl:3b`) or Gemini when `ADPROOF_MODEL_PROVIDER=gemini` and `GEMINI_API_KEY` are configured; it never silently falls back to fixtures. Reports are bounded evidence summaries, not legal advice, legal review, platform certification, or a safety guarantee. Human review is required outside the implemented scope and when evidence or model availability is incomplete.
 
 Agent address: `runtime/agents.json` on the configured runtime volume.

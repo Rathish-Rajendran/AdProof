@@ -10,7 +10,7 @@ flowchart LR
     B --> C[Orchestrator]
     C --> D[Verifier]
     C --> E[Remediator]
-    D --> F[Gemini]
+    D --> F["Ollama (default) / Gemini (optional)"]
     E --> F
     C -. traces and logs .-> G[Sentry]
     D -. traces and logs .-> G
@@ -28,7 +28,14 @@ See the [architecture overview](docs/architecture.md) for component details.
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 
-- A Gemini API key with billing enabled for live runs. The free tier has run out after about 6–8 calls in validation; one `demo aerobeat` workflow uses about 8 calls. Quotas and provider behavior can change.
+- Ollama installed and serving at `http://127.0.0.1:11434` for the default local provider. See the [official install guide](https://ollama.com/download). The current default model is `qwen2.5vl:3b`; if it is not already available locally, pull it once:
+
+  ```sh
+  curl -fsSL https://ollama.com/install.sh | sh
+  ollama pull qwen2.5vl:3b
+  ```
+
+- A Gemini API key with billing enabled only if you switch to the optional Gemini provider. On the prior key, the free tier ran out after about 6–8 calls; one `demo aerobeat` workflow uses about 8 calls. Quotas and provider behavior can change.
 - Optional Sentry DSN for tracing and logs.
 - An Agentverse account and an ASI:One account, both available through [asi1.ai](https://asi1.ai). The Agentverse inspector is also available at [agentverse.ai](https://agentverse.ai).
 
@@ -54,7 +61,9 @@ if [ ! -f .env ]; then cp .env.example .env; fi
 $EDITOR .env
 ```
 
-Set `GEMINI_API_KEY` to your key, keep `GEMINI_MODEL=gemini-3.5-flash`, and set `ADPROOF_MAILBOX_ENABLED=1` for Agentverse/ASI:One. Optionally set `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, and `SENTRY_TRACES_SAMPLE_RATE=1.0`. Do not paste keys or seed values into source files, logs, issues, or commits.
+For the default local provider, set `ADPROOF_MODEL_PROVIDER=ollama`, `OLLAMA_MODEL=qwen2.5vl:3b`, `OLLAMA_BASE_URL=http://127.0.0.1:11434`, and `ADPROOF_WORKFLOW_DEADLINE_SECONDS=600`. Set `ADPROOF_MAILBOX_ENABLED=1` for Agentverse/ASI:One. Optionally set `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, and `SENTRY_TRACES_SAMPLE_RATE=1.0`. Do not paste keys or seed values into source files, logs, issues, or commits.
+
+To switch back to Gemini without a code change, set `ADPROOF_MODEL_PROVIDER=gemini`, supply `GEMINI_API_KEY`, and set `GEMINI_MODEL` if you want a model other than its default. Restart the agents after changing `.env`. Only the Gemini provider requires the Gemini key.
 
 The local Python settings and `scripts/run_all.sh` do **not** load `.env` automatically. Export its values in each shell before starting local commands, and keep that shell open:
 
@@ -66,15 +75,19 @@ set +a
 
 On first start, the runtime generates private identities in `runtime/agent-seeds.json` and writes their public addresses to `runtime/agents.json`. The seed file is gitignored and mode `0600`; back it up securely to preserve the agent addresses and mailbox identity. You may supply `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, and `REMEDIATOR_SEED` in `.env` instead. Never publish those values.
 
-## 5. Optional live Gemini smoke
+## 5. Live model evaluation
 
-With the environment loaded as above, run a small paid live evaluation:
+With Ollama running and the environment loaded as above, evaluate the configured provider:
 
 ```sh
 uv run python -m adproof.eval --live --cases 1,2 --max-model-calls 12
 ```
 
-This makes real model calls and writes a JSON report under `runtime/eval/`. Case 1 is expected to find unsafe claims and decide `FIX_REQUIRED`; case 2 is expected to pass. Provider errors or quota exhaustion can instead produce `HUMAN_REVIEW`. Do not run this if you need to conserve API quota.
+This makes live model calls and writes a JSON report under `runtime/eval/`. Case 1 is expected to find unsafe claims and decide `FIX_REQUIRED`; case 2 is expected to pass. The default Ollama provider runs locally and does not use Gemini quota. Selecting Gemini may incur charges and may hit provider quotas; provider errors can produce `HUMAN_REVIEW`.
+
+On an 8-core, 31 GB CPU-only machine, the user measured `qwen2.5vl:3b` reading the only-$49 image correctly in 42 seconds including model load and splitting the unsafe copy into four atomic claims in 10 seconds. `gemma3:4b` also produced the correct outputs but took 71 seconds and 46 seconds, respectively. These are single-machine observations, not benchmarks. Small local models may be less accurate than Gemini and can be slow on CPU; review each live result rather than treating model output as guaranteed.
+
+A separate four-case live run on 2026-10-18 did not meet the expected quality: cases 1, 2, and 4 returned `HUMAN_REVIEW` instead of their expected decisions. Case 3 returned `FIX_REQUIRED`, but its report did not identify the `$49` image issue. Treat the default local model as experimental; the detailed results and artifact path are in the [validation status](docs/validation-status.md).
 
 ## 6. Start the three agents
 
@@ -125,18 +138,20 @@ Healthy output lists `HEALTHY` for all three roles. Stop the foreground supervis
 
 ## 9. Always-on hosting (Docker)
 
-Use the private `.env` from section 4; if starting from a fresh checkout, create it from the example. Set `ADPROOF_MAILBOX_ENABLED=1` and add the private model key if using LIVE:
+Use the private `.env` from section 4; if starting from a fresh checkout, create it from the example. Set `ADPROOF_MAILBOX_ENABLED=1`. Compose provides the agents with the internal Ollama address `http://ollama:11434`:
 
 ```sh
 if [ ! -f .env ]; then cp .env.example .env; fi
 $EDITOR .env
 docker compose config --quiet
+docker compose up --build -d ollama
+docker compose exec ollama ollama pull qwen2.5vl:3b
 docker compose up --build -d
 docker compose ps
 docker compose logs orchestrator
 ```
 
-Compose loads `.env` itself. The Compose named `runtime` volume holds the container identities across restarts. To retain the address already connected in Agentverse, privately copy the values from your existing `runtime/agent-seeds.json` into `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, and `REMEDIATOR_SEED` in `.env`; never print or commit them. Connect the mailbox using a browser on the Docker host, where port 8100 is published.
+Compose loads `.env` itself. The named `ollama_models` volume retains downloaded models; the named `runtime` volume holds container identities across restarts. To retain the address already connected in Agentverse, privately copy the values from your existing `runtime/agent-seeds.json` into `ORCHESTRATOR_SEED`, `VERIFIER_SEED`, and `REMEDIATOR_SEED` in `.env`; never print or commit them. Connect the mailbox using a browser on the Docker host, where port 8100 is published. For Gemini instead, set `ADPROOF_MODEL_PROVIDER=gemini` and `GEMINI_API_KEY` in `.env`; restart the Compose services after changing provider settings.
 
 **Docker validation:** Docker is available in the validation environment, and `docker compose config --quiet` passed using a temporary `.env` copied from `.env.example`. The full `docker compose up` was **not** tested in this validation.
 
@@ -150,12 +165,12 @@ Compose loads `.env` itself. The Compose named `runtime` volume holds the contai
 | ASI:One does not reply | Agents are stopped, the host is asleep, or the message was not addressed to the agent. | Check `runtime/orchestrator.log`, verify the recipient/`@` mention, and restart the agents if needed. |
 | `Request could not be processed (ValueError)` | An old build does not strip ASI:One's leading `@` mention. | Pull/update the current code and restart the orchestrator. |
 | `MODEL_AUTH` HTTP 401 | The configured key is invalid or stale. | Update `.env`, re-export it, and restart/recreate the agents. |
-| `MODEL_UNAVAILABLE` / quota | The Gemini free-tier quota is exhausted; HTTP 503 may also indicate provider unavailability. | Enable billing for quota exhaustion; retry later for a provider 503. |
+| `MODEL_UNAVAILABLE` / model not found | Ollama is unavailable or the configured model is not pulled; Gemini quota/provider errors can also cause this code. | Start Ollama and pull `OLLAMA_MODEL`; for Gemini quota errors enable billing or retry later after provider outages. |
 | “Not enough funds to register on Almanac contract” | Optional on-chain registration was skipped. | No action needed; successful Almanac API mailbox registration is sufficient. |
 
 ## 11. Validation status
 
-See the detailed [validation status](docs/validation-status.md). Live Agentverse mailbox registration, Sentry ingestion, and the ASI:One help round-trip have passed. In the latest user-reported ASI:One case-1 run, the original four-issue `FIX_REQUIRED` audit and the copy-only repair proposal succeeded through all three agents; Gemini quota exhaustion blocked only the final re-verification, leaving the workflow `PARTIAL` with `HUMAN_REVIEW` and `repair_verified=false`.
+See the detailed [validation status](docs/validation-status.md). Live Agentverse mailbox registration, Sentry ingestion, and the ASI:One help round-trip have passed. The latest user-reported ASI:One case-1 run used Gemini: the original four-issue `FIX_REQUIRED` audit and copy-only repair proposal succeeded through all three agents, but Gemini quota exhaustion blocked re-verification, leaving the workflow `PARTIAL` with `HUMAN_REVIEW` and `repair_verified=false`. A separate local four-case Ollama evaluation used 13 calls: cases 1, 2, and 4 returned `HUMAN_REVIEW` instead of the expected decisions, and case 3's matching `FIX_REQUIRED` result did not report the `$49` image mismatch. The full ASI:One workflow remains **PARTIAL**; this Ollama run does not validate the provider in ASI:One.
 
 ## 12. Agent addresses
 
@@ -176,6 +191,6 @@ One campaign supports one PNG/JPEG image, one copy string, one HTTPS landing pag
 ## MOCK vs LIVE
 
 - `MOCK` is selected explicitly with `uv run python -m adproof.demo --mode mock`; it uses deterministic fixtures and is offline.
-- `LIVE` uses the configured Gemini model and real supplied HTTPS sources. Errors remain typed errors; there is no silent fallback to fixture outputs.
-- `GEMINI_MODEL` is configurable and defaults to `gemini-3.5-flash`. Live inference can incur provider charges. Keep credentials in the environment or a secret manager, never in source control.
+- `LIVE` uses the configured provider (Ollama by default) and real supplied HTTPS sources. Errors remain typed errors; there is no silent fallback to fixture outputs.
+- `ADPROOF_MODEL_PROVIDER=gemini` opts into Gemini, with `GEMINI_MODEL` defaulting to `gemini-3.5-flash`; only this provider requires `GEMINI_API_KEY` and can incur provider charges. Keep credentials in the environment or a secret manager, never in source control.
 - The bounded live evaluator writes its JSON report under `runtime/eval/`; see [evaluation](docs/evaluation.md).
