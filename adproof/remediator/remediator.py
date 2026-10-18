@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,7 +18,7 @@ from adproof.domain.models import (
 )
 from adproof.model_client import ModelClient, ModelClientError
 
-_NUMBER = re.compile(r"\$?\d[\d,]*(?:\.\d+)?%?")
+_NUMBER = re.compile(r"(?P<currency>\$)?(?P<value>\d[\d,]*(?:\.\d+)?)(?P<percent>%?)")
 PROMPT_VERSION = "copy-remediation-v1"
 
 
@@ -26,6 +27,17 @@ class _RepairOutput(BaseModel):
     repaired_copy: str = Field(max_length=4096)
     changes: list[RepairChange] = Field(default_factory=list)
     unresolved_issue_ids: list[str] = Field(default_factory=list)
+
+
+def _number_tokens(text: str) -> set[tuple[bool, Decimal, bool]]:
+    tokens = set()
+    for match in _NUMBER.finditer(text):
+        try:
+            value = Decimal(match.group("value").replace(",", ""))
+        except InvalidOperation:
+            continue
+        tokens.add((bool(match.group("currency")), value, bool(match.group("percent"))))
+    return tokens
 
 
 async def remediate_copy(
@@ -108,12 +120,23 @@ async def remediate_copy(
             ],
             errors=errors,
         )
-    permitted_numbers = set(_NUMBER.findall(ad_copy))
+    permitted_numbers = _number_tokens(ad_copy)
     for item in evidence:
-        permitted_numbers.update(_NUMBER.findall(item.excerpt))
+        permitted_numbers.update(_number_tokens(item.excerpt))
     for claim in claims:
-        permitted_numbers.update(_NUMBER.findall(str(claim.derivation)))
-    invented = set(_NUMBER.findall(proposal.repaired_copy)) - permitted_numbers
+        for field, currency, percent in (
+            ("original_price", True, False),
+            ("current_price", True, False),
+            ("computed_percent_off", False, True),
+            ("stated_percent_off", False, True),
+        ):
+            value = claim.derivation.get(field)
+            if value is not None:
+                try:
+                    permitted_numbers.add((currency, Decimal(str(value)), percent))
+                except InvalidOperation:
+                    continue
+    invented = _number_tokens(proposal.repaired_copy) - permitted_numbers
     repaired_copy = proposal.repaired_copy
     unresolved = set(proposal.unresolved_issue_ids) | {issue.id for issue in image_issues}
     errors: list[TypedError] = []
