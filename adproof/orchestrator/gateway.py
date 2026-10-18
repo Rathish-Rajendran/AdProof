@@ -18,6 +18,7 @@ from adproof.domain.models import (
     VerificationResult,
 )
 from adproof.infrastructure.budget import BudgetExhausted, ModelCallBudget
+from adproof.infrastructure.telemetry import record_event
 from adproof.transport.models import (
     SpecialistOperation,
     SpecialistTask,
@@ -48,21 +49,45 @@ class LocalGateway:
     async def verify(self, request: VerificationRequest) -> VerificationResult:
         from adproof.verifier.verifier import verify_campaign
 
-        return await verify_campaign(request, self.verification_dependencies)
+        for attempt in (1, 2):
+            result = await verify_campaign(request, self.verification_dependencies)
+            error = _retryable_error(result)
+            if attempt == 2 or error is None or datetime.now(UTC) >= request.deadline:
+                return result
+            record_event(
+                "retry_scheduled",
+                audit_id=request.audit_id,
+                role="local_gateway",
+                stage="verify",
+                result=error.code.value,
+            )
+        return result
 
     async def repair(self, request: RepairRequest) -> RepairResult:
         from adproof.remediator.remediator import remediate_copy
 
-        return await remediate_copy(
-            audit_id=request.audit_id,
-            candidate_id=request.candidate_id,
-            ad_copy=request.ad_copy,
-            issues=request.issues,
-            claims=request.claims,
-            evidence=request.evidence,
-            model=self.model,
-            deadline=request.deadline,
-        )
+        for attempt in (1, 2):
+            result = await remediate_copy(
+                audit_id=request.audit_id,
+                candidate_id=request.candidate_id,
+                ad_copy=request.ad_copy,
+                issues=request.issues,
+                claims=request.claims,
+                evidence=request.evidence,
+                model=self.model,
+                deadline=request.deadline,
+            )
+            error = _retryable_error(result)
+            if attempt == 2 or error is None or datetime.now(UTC) >= request.deadline:
+                return result
+            record_event(
+                "retry_scheduled",
+                audit_id=request.audit_id,
+                role="local_gateway",
+                stage="repair",
+                result=error.code.value,
+            )
+        return result
 
 
 class UAgentsGateway:
@@ -124,6 +149,46 @@ class UAgentsGateway:
         phase: str,
         deadline: datetime,
     ) -> Any | TypedError:
+        for attempt in (1, 2):
+            response = await self._dispatch_attempt(
+                operation=operation,
+                request=request,
+                response_model=response_model,
+                audit_id=audit_id,
+                campaign_id=campaign_id,
+                candidate_id=candidate_id,
+                creative_version=creative_version,
+                phase=phase,
+                deadline=deadline,
+                attempt=attempt,
+            )
+            error = _retryable_error(response)
+            remaining = (deadline - datetime.now(UTC)).total_seconds()
+            if attempt == 2 or error is None or remaining <= 0:
+                return response
+            record_event(
+                "retry_scheduled",
+                audit_id=audit_id,
+                role="orchestrator",
+                stage=operation.value.lower(),
+                result=error.code.value,
+            )
+        return response
+
+    async def _dispatch_attempt(
+        self,
+        *,
+        operation: SpecialistOperation,
+        request: BaseModel,
+        response_model: type[BaseModel],
+        audit_id: str,
+        campaign_id: str,
+        candidate_id: str,
+        creative_version: int,
+        phase: str,
+        deadline: datetime,
+        attempt: int,
+    ) -> Any | TypedError:
         remaining = (deadline - datetime.now(UTC)).total_seconds()
         if remaining <= 0:
             return TypedError(code=TypedErrorCode.TASK_TIMEOUT, message="No dispatch time remains.")
@@ -149,7 +214,7 @@ class UAgentsGateway:
             creative_version=creative_version,
             phase=phase,
             operation=operation,
-            attempt=1,
+            attempt=attempt,
             deadline=deadline,
             execution_mode=self.execution_mode,
             payload_json=request.model_dump_json(),
@@ -182,12 +247,27 @@ class UAgentsGateway:
                     retryable=True,
                 )
             response = await self.pending.wait(task_id, future, timeout=remaining)
+        except TimeoutError:
+            await self.pending.cancel(task_id)
+            await self.budget.release(grant)
+            return TypedError(
+                code=TypedErrorCode.TASK_TIMEOUT,
+                message="Specialist dispatch timed out.",
+                retryable=True,
+            )
         except Exception:
             await self.pending.cancel(task_id)
             await self.budget.release(grant)
             return TypedError(code=TypedErrorCode.INTERNAL, message="Specialist dispatch failed.")
         if isinstance(response, TypedErrorCode):
             await self.budget.release(grant)
+            record_event(
+                "task_timed_out",
+                audit_id=audit_id,
+                role="orchestrator",
+                stage=operation.value.lower(),
+                result=response.value,
+            )
             return TypedError(code=response, message="Specialist task timed out.", retryable=True)
         try:
             validate_result_shape(response)
@@ -208,3 +288,13 @@ class UAgentsGateway:
                 code=code,
                 message=f"Specialist returned an invalid payload ({type(exc).__name__}).",
             )
+
+
+def _retryable_error(result: Any) -> TypedError | None:
+    retryable_codes = {TypedErrorCode.TASK_TIMEOUT, TypedErrorCode.MODEL_UNAVAILABLE}
+    if isinstance(result, TypedError):
+        return result if result.code in retryable_codes and result.retryable else None
+    for error in getattr(result, "errors", []):
+        if error.code in retryable_codes and error.retryable:
+            return error
+    return None

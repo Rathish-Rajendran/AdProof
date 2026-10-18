@@ -23,6 +23,14 @@ def _public_dns(*args, **kwargs):
     return [(None, None, None, None, ("8.8.8.8", 443))]
 
 
+class _NetworkStream:
+    def __init__(self, server_address="8.8.8.8"):
+        self.server_address = server_address
+
+    def get_extra_info(self, name):
+        return self.server_address if name == "server_addr" else None
+
+
 def test_image_freezing_canonicalizes_png_and_rejects_html():
     frozen = freeze_image(_png())
     assert frozen.width == 32
@@ -45,8 +53,33 @@ def test_url_allowlist_and_dns_private_address_checks(monkeypatch):
         validate_public_url("https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/file.png")
     assert error.value.code == TypedErrorCode.UNSAFE_SOURCE
     monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+    assert validate_public_url("https://raw.githubusercontent.com/other/repo/file.png")
     with pytest.raises(SafeFetchError):
-        validate_public_url("https://raw.githubusercontent.com/other/repo/file.png")
+        validate_public_url(
+            "https://raw.githubusercontent.com/other/repo/file.png",
+            {"raw.githubusercontent.com": ("/Rathish-Rajendran/AdProof/",)},
+        )
+
+
+def test_allowlist_is_optional_but_can_be_configured(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+    assert validate_public_url("https://example.com/landing")
+    monkeypatch.setenv("ADPROOF_SOURCE_ALLOWLIST", "example.com=/safe")
+    assert validate_public_url("https://example.com/safe/page")
+    with pytest.raises(SafeFetchError):
+        validate_public_url("https://example.com/landing")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://user:password@example.com/page",
+        "https://example.com:8443/page",
+    ],
+)
+def test_credentials_and_non_443_ports_are_rejected(url):
+    with pytest.raises(SafeFetchError):
+        validate_public_url(url)
 
 
 @pytest.mark.asyncio
@@ -56,7 +89,11 @@ async def test_redirect_is_revalidated_before_second_request(monkeypatch):
 
     async def handler(request: httpx.Request) -> httpx.Response:
         requested.append(str(request.url))
-        return httpx.Response(302, headers={"location": "https://example.com/landing"})
+        return httpx.Response(
+            302,
+            headers={"location": "https://127.0.0.1/private"},
+            extensions={"network_stream": _NetworkStream()},
+        )
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
     safe = SafeHttpClient(client=client)
@@ -68,6 +105,48 @@ async def test_redirect_is_revalidated_before_second_request(monkeypatch):
             )
         assert error.value.code == TypedErrorCode.UNSAFE_SOURCE
         assert len(requested) == 1
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_connected_private_peer_is_rejected(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b"body",
+            extensions={"network_stream": _NetworkStream("127.0.0.1")},
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+    safe = SafeHttpClient(client=client)
+    try:
+        with pytest.raises(SafeFetchError) as error:
+            await safe.fetch("https://example.com/page", max_bytes=1024)
+        assert error.value.code == TypedErrorCode.UNSAFE_SOURCE
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_response_byte_limit_is_enforced(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", _public_dns)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b"x" * 1025,
+            extensions={"network_stream": _NetworkStream()},
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+    safe = SafeHttpClient(client=client)
+    try:
+        with pytest.raises(SafeFetchError) as error:
+            await safe.fetch("https://example.com/page", max_bytes=1024)
+        assert error.value.code == TypedErrorCode.SOURCE_TOO_LARGE
     finally:
         await client.aclose()
 

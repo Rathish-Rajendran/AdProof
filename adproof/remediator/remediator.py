@@ -131,8 +131,22 @@ async def remediate_copy(
         qualifiers = claim.conditions.get("qualifiers", [])
         if claim.claim.casefold().find("up to") >= 0:
             qualifiers = [*qualifiers, "up to"]
-        if "noise cancellation off" in claim.claim.casefold():
-            qualifiers = [*qualifiers, "noise cancellation off"]
+        condition_terms = claim.conditions.get("condition_terms", {})
+        if not isinstance(condition_terms, dict):
+            condition_terms = {}
+        for key in ("coupon", "subscription", "anc_mode", "noise_cancellation"):
+            value = condition_terms.get(key, claim.conditions.get(key))
+            if value:
+                qualifiers = [
+                    *qualifiers,
+                    "noise cancellation " + str(value)
+                    if key in {"anc_mode", "noise_cancellation"}
+                    else key,
+                ]
+        claim_text = claim.claim.casefold()
+        for qualifier in ("noise cancellation off", "noise cancellation on"):
+            if qualifier in claim_text:
+                qualifiers = [*qualifiers, qualifier]
         if claim.id in {issue.claim_id for issue in issues}:
             if any(
                 str(qualifier).casefold() in claim.claim.casefold() for qualifier in qualifiers

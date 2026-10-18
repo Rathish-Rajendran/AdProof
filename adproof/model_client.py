@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -13,6 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from adproof.domain.models import TypedError, TypedErrorCode
 from adproof.infrastructure.budget import BudgetExhausted, ModelCallBudget
+from adproof.infrastructure.telemetry import record_event
 
 PROMPT_SCHEMA_VERSION = "1"
 
@@ -100,6 +103,7 @@ class GoogleGenAIClient:
                 contents.append(part)
         start = time.monotonic()
         correction = False
+        transport_retries = 0
         while True:
             remaining = (deadline - datetime.now(UTC)).total_seconds()
             if remaining <= 0:
@@ -149,11 +153,22 @@ class GoogleGenAIClient:
             except Exception as exc:
                 status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
                 status_text = str(status)
+                error_text = str(exc)
+                quota_exhausted = (
+                    "429" in status_text or "resource_exhausted" in error_text.casefold()
+                ) and bool(
+                    re.search(
+                        r"quota|billing|resource[_ -]?exhausted|exceeded.*limit",
+                        error_text,
+                        re.IGNORECASE,
+                    )
+                )
                 code = (
                     TypedErrorCode.MODEL_AUTH
                     if status_text in {"401", "403"}
                     else TypedErrorCode.MODEL_UNAVAILABLE
                 )
+                retryable = code == TypedErrorCode.MODEL_UNAVAILABLE and not quota_exhausted
                 self.call_records.append(
                     {
                         "purpose": purpose,
@@ -161,13 +176,35 @@ class GoogleGenAIClient:
                         "latency_seconds": time.monotonic() - call_started,
                         "error": code.value,
                         "http_status": status_text,
+                        "quota_exhausted": quota_exhausted,
                     }
                 )
+                remaining = (deadline - datetime.now(UTC)).total_seconds()
+                delay = random.uniform(0.25, 0.75)
+                if retryable and transport_retries == 0 and remaining > delay + 0.1:
+                    transport_retries += 1
+                    record_event(
+                        "retry_scheduled",
+                        role="model_client",
+                        stage=purpose,
+                        duration=delay,
+                        result=code.value,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
                 raise ModelClientError(
                     TypedError(
                         code=code,
-                        message=f"Gemini request failed ({status or type(exc).__name__})",
-                        retryable=code == TypedErrorCode.MODEL_UNAVAILABLE,
+                        message=(
+                            "Gemini quota is exhausted."
+                            if quota_exhausted
+                            else f"Gemini request failed ({status or type(exc).__name__})"
+                        ),
+                        retryable=retryable,
+                        details={
+                            "http_status": status_text,
+                            "quota_exhausted": quota_exhausted,
+                        },
                     )
                 ) from exc
             try:

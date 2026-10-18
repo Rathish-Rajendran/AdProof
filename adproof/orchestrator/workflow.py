@@ -8,8 +8,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import sentry_sdk
-
 from adproof.domain.decision import select_report
 from adproof.domain.models import (
     AuditReport,
@@ -31,7 +29,7 @@ from adproof.infrastructure.image import ImageFreezeError, freeze_image
 from adproof.infrastructure.safe_http import SafeFetchError, SafeHttpClient
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.store import SQLiteStore
-from adproof.infrastructure.telemetry import record_event
+from adproof.infrastructure.telemetry import record_event, stage_span
 from adproof.inspector.inspector import ImageInspector
 from adproof.orchestrator.gateway import LocalGateway
 
@@ -122,10 +120,11 @@ async def run_campaign(
             )
         candidate_id = f"candidate-{uuid.uuid4().hex[:12]}"
         try:
-            fetched = await dependencies.http.fetch(
-                campaign.creative.image_url, max_bytes=8 * 1024 * 1024
-            )
-            frozen = freeze_image(fetched.content)
+            with stage_span("image_fetch_and_freeze", audit_id=audit_id, role="orchestrator"):
+                fetched = await dependencies.http.fetch(
+                    campaign.creative.image_url, max_bytes=8 * 1024 * 1024
+                )
+                frozen = freeze_image(fetched.content)
         except Exception as exc:
             errors.append(_as_error(exc, source=campaign.creative.image_url))
             frozen = None
@@ -186,7 +185,7 @@ async def run_campaign(
             state="INSPECTING",
             payload={"request_id": campaign.request_id, "candidate_id": candidate_id},
         )
-        with sentry_sdk.start_span(op="adproof.inspect", description="inspect frozen image"):
+        with stage_span("inspect", audit_id=audit_id, role="orchestrator"):
             inspection = await dependencies.inspector.inspect(
                 candidate_id=candidate_id,
                 image_sha256=frozen.model_input_sha256,
@@ -214,7 +213,14 @@ async def run_campaign(
         repair_proposal: RepairResult | None = None
         revised_candidate: CreativeCandidate | None = None
         revised_audit: VerificationResult | None = None
-        if datetime.now(UTC) < deadline - timedelta(seconds=RESERVE_SECONDS):
+        nonretryable_model_failure = any(
+            error.code in {TypedErrorCode.MODEL_AUTH, TypedErrorCode.MODEL_UNAVAILABLE}
+            and not error.retryable
+            for error in inspection.errors
+        )
+        if not nonretryable_model_failure and datetime.now(UTC) < deadline - timedelta(
+            seconds=RESERVE_SECONDS
+        ):
             dependencies.store.save_workflow(
                 audit_id=audit_id,
                 owner=owner,
@@ -222,15 +228,13 @@ async def run_campaign(
                 state="VERIFYING",
                 payload={"request_id": campaign.request_id, "candidate_id": candidate_id},
             )
-            with sentry_sdk.start_span(
-                op="adproof.verify", description="verify original candidate"
-            ):
+            with stage_span("verify_original", audit_id=audit_id, role="orchestrator"):
                 verify_result = await dependencies.gateway.verify(verify_request)
             if isinstance(verify_result, VerificationResult):
                 original_audit = verify_result
             else:
                 errors.append(verify_result)
-        else:
+        elif not nonretryable_model_failure:
             errors.append(
                 TypedError(
                     code=TypedErrorCode.TIMEOUT,
@@ -264,7 +268,7 @@ async def run_campaign(
                 issues=original_audit.issues,
                 deadline=deadline - timedelta(seconds=RESERVE_SECONDS),
             )
-            with sentry_sdk.start_span(op="adproof.repair", description="propose copy-only repair"):
+            with stage_span("repair", audit_id=audit_id, role="orchestrator"):
                 repair_result = await dependencies.gateway.repair(repair_request)
             if isinstance(repair_result, RepairResult):
                 repair_proposal = repair_result
@@ -302,9 +306,7 @@ async def run_campaign(
                             "ad_copy": revised_candidate.ad_copy,
                         }
                     )
-                    with sentry_sdk.start_span(
-                        op="adproof.reverify", description="independently verify revised candidate"
-                    ):
+                    with stage_span("reverify", audit_id=audit_id, role="orchestrator"):
                         revised_result = await dependencies.gateway.verify(revised_request)
                     if isinstance(revised_result, VerificationResult):
                         revised_audit = revised_result
@@ -369,7 +371,11 @@ async def run_campaign(
             owner=owner,
             session_id=session_id,
             state=state,
-            payload={"request_id": campaign.request_id, "report": report.model_dump(mode="json")},
+            payload={
+                "request_id": campaign.request_id,
+                "campaign": campaign.model_dump(mode="json"),
+                "report": report.model_dump(mode="json"),
+            },
         )
         record_event(
             "audit_completed",

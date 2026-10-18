@@ -2,8 +2,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from adproof.domain.models import InspectionStatus
 from adproof.inspector.inspector import ImageInspector
-from adproof.model_client import ModelResponse
+from adproof.model_client import FakeModelClient, ModelResponse
 
 
 class RecordingModel:
@@ -36,3 +37,26 @@ async def test_inspector_passes_image_and_text_as_distinct_prompt_parts():
 
     assert model.prompt_parts[0] == (image, "image/png")
     assert isinstance(model.prompt_parts[1], str)
+
+
+@pytest.mark.asyncio
+async def test_materially_unreadable_image_produces_partial_coverage_without_ocr():
+    model = FakeModelClient(
+        [
+            {
+                "observations": [],
+                "readable": False,
+                "uncertainty": ["The promotional text is too blurry to read."],
+            }
+        ]
+    )
+    result = await ImageInspector(model).inspect(
+        candidate_id="candidate-blurry",
+        image_sha256="blurry-hash",
+        image_bytes=b"frozen image bytes",
+        deadline=datetime.now(UTC) + timedelta(seconds=30),
+    )
+
+    assert result.status == InspectionStatus.PARTIAL
+    assert result.observations == []
+    assert result.uncertainty
