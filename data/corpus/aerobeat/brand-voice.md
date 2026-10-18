@@ -5,18 +5,24 @@ url: https://aerobeat.example/brand/voice
 doc_type: brand_guidance
 ---
 
-# Brand voice and claims guide
+# AeroBeat brand voice and communications guide
 
 This is a synthetic demonstration document; AeroBeat and all product information here are fictional.
 
-## Voice
+## Company voice
 
-Use clear, direct, helpful language. Prefer specific documented facts over superlatives. Keep qualifications next to the claim they qualify.
+Use clear, direct, helpful language across product pages, support materials, retail listings, and campaign copy. Write for people comparing practical audio products. Keep sentences concise, explain technical terms on first use, and put important qualifications next to the statement they qualify. Favor a calm, welcoming tone over urgency or exaggerated excitement.
 
-## Unsupported wording
+## Product naming and descriptions
 
-Do not claim “best,” “#1,” guaranteed performance, celebrity or athlete endorsement, customer-review counts, or independent testing. The AB-01 is splash-resistant for everyday use and is not waterproof.
+Use the full product name at first mention: AeroBeat AB-01 headphones, AeroBeat AB-02 Pro earbuds, or AeroBeat Mini speaker. Later references may use AB-01, AB-02 Pro, or Mini speaker. Distinguish the products clearly when describing battery life, water resistance, charging, or price.
 
-## Prices and offers
+## Claims and qualifications
 
-Use the regular and current prices in the product and promotions records. Do not invent a sale end date or use “limited time.”
+Product statements should match the current product page or specification sheet. Preserve phrases such as “up to,” the stated listening conditions, and the applicable IP rating. AB-01 is splash-resistant for everyday use and is not waterproof. AB-02 Pro is not for swimming. Mini speaker water resistance is limited to the conditions stated on its product page.
+
+The brand does not use unverified rankings, guarantees, celebrity or athlete endorsements, independent-test claims, or customer-review counts. Describe a promotion using its documented regular price, current price, and percentage; no end date is announced for the offers in the current promotions record.
+
+## Editorial practice
+
+Use sentence case in headings and ordinary punctuation. Keep product specifications readable rather than stacking technical terms into a slogan. When campaign copy is adapted for a retailer or a platform, keep the meaning and the qualifications of the original product description intact.

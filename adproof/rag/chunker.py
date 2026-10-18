@@ -18,6 +18,7 @@ class CorpusDocument:
     doc_type: str
     text: str
     sha256: str
+    product_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,7 @@ def parse_document(path: Path) -> CorpusDocument:
         doc_type=metadata["doc_type"],
         text=body,
         sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        product_id=metadata.get("product_id"),
     )
 
 

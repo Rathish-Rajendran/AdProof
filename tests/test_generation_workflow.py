@@ -105,7 +105,13 @@ def _request(copy: str, audience: str = "adults") -> VerificationRequest:
 
 
 async def _verify_claim(
-    copy: str, *, claim_text: str, status: ClaimStatus, quote: str, audience="adults"
+    copy: str,
+    *,
+    claim_text: str,
+    status: ClaimStatus,
+    quote: str,
+    audience="adults",
+    source_index: int = 1,
 ):
     model = FakeModelClient(
         [
@@ -123,7 +129,7 @@ async def _verify_claim(
                     _Assessment(
                         claim_id="claim-1",
                         status=status,
-                        source_index=1,
+                        source_index=source_index,
                         quote=quote,
                         explanation="Corpus assessment.",
                     )
@@ -182,6 +188,20 @@ async def test_corpus_verification_contradicts_waterproof_and_minors_require_rev
 
 
 @pytest.mark.asyncio
+async def test_corpus_verification_accepts_quote_from_product_page_only():
+    result = await _verify_claim(
+        "AeroBeat is waterproof.",
+        claim_text="waterproof",
+        status=ClaimStatus.CONTRADICTED,
+        quote="not waterproof",
+        source_index=0,
+    )
+
+    assert result.decision == Decision.FIX_REQUIRED
+    assert not any(error.code.value == "INVALID_EVIDENCE" for error in result.errors)
+
+
+@pytest.mark.asyncio
 async def test_offline_generation_workflow_repairs_and_rechecks():
     index = FakeCorpusIndex()
     prompt = "Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults"
@@ -200,7 +220,18 @@ async def test_offline_generation_workflow_repairs_and_rechecks():
     assert report.revised_audit.decision == Decision.PASS
     assert report.repair_verified is True
     assert summary["request"]["platform"] == "google_ads"
+    assert summary["request"]["prompt"] == prompt
+    assert "product_query" not in summary["request"]
     assert summary["generated_ad"]["final_url"] == PAGE_URL
+    assert list(summary) == [
+        "audit_id",
+        "request",
+        "generated_ad",
+        "original_check",
+        "fix",
+        "recheck",
+        "final",
+    ]
     assert set(summary) >= {
         "audit_id",
         "request",

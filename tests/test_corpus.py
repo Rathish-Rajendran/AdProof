@@ -30,3 +30,12 @@ def test_ab01_corpus_contains_the_documented_facts_only():
         assert contents[max(0, match.start() - 4) : match.start()].lower() == "not "
     for path in CORPUS.glob("*.md"):
         assert "synthetic" in path.read_text(encoding="utf-8").lower()
+
+
+def test_corpus_is_realistic_sized_and_old_retrieval_cards_are_removed():
+    documents = list(CORPUS.glob("*.md"))
+    total_bytes = sum(path.stat().st_size for path in documents)
+
+    assert 35_000 <= total_bytes <= 50_000
+    assert not (CORPUS / "ab01-retrieval-cards.md").exists()
+    assert not (CORPUS / "ab01-fact-ledger.md").exists()

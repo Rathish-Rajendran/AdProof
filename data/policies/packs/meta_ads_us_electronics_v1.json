@@ -13,13 +13,11 @@
     "evidence_quote_validation",
     "platform_policy_rule_evaluation"
   ],
-  "required_rule_ids": [
-    "META_PROHIBITED_COMMERCIAL_PRACTICES_REFERENCE"
-  ],
+  "required_rule_ids": [],
   "optional_rule_ids": [
     "FTC_ENDORSEMENT_GUIDES_REFERENCE",
     "FTC_CONSUMER_REVIEW_RULE_REFERENCE",
     "FTC_DECEPTIVE_PRICING_FORMER_PRICE_REFERENCE"
   ],
-  "notes": "No Meta rules are ACTIVE: policy text was unavailable to the normalized fetch and no predicate was reviewed. The required reference ID is intentionally absent from the enforced catalog, making policy coverage incomplete so verification falls back to HUMAN_REVIEW."
+  "notes": "Meta policy references are retained in the research library, but no verified Meta rule with a supported claim-check predicate is ACTIVE in the enforcement catalog. Verification therefore requires human review."
 }

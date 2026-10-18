@@ -80,6 +80,12 @@ The default model spec is `ADPROOF_MODEL_DEFAULT=gemini:gemini-3.5-flash`; all j
 
 The optional `uv run python -m adproof.generate "<prompt>" --offline` command uses deterministic fake generation and verification models while exercising the local corpus retrieval and repair workflow. Build the local hybrid index with `uv run python -m adproof.rag.index build`.
 
+### Retrieval strategy
+
+- Markdown is split into heading-aware chunks of about 800 characters with 120-character overlap.
+- Hybrid retrieval combines BM25 and BGE-small embeddings with Reciprocal Rank Fusion (RRF).
+- Chunk text, metadata, and embeddings are stored locally in `runtime/corpus_index.sqlite3`.
+
 Ollama with `qwen2.5:3b` for text and `qwen2.5vl:3b` for image inspection is an optional local alternative. To use it, set both `ADPROOF_MODEL_DEFAULT=ollama:qwen2.5:3b` and `ADPROOF_MODEL_IMAGE_INSPECTION=ollama:qwen2.5vl:3b`; the 3B local runs mostly ended in `HUMAN_REVIEW`. The 7B pair is a higher-capacity local option but slower on CPU, and its partial run did not establish a quality improvement. The vision model is reserved for the job that reads pixels; repair shares the text model because code validates numbers. Pull either pair from the Ollama host before use:
 
 ```sh
@@ -159,6 +165,17 @@ Healthy output lists `HEALTHY` for all four roles. Stop the foreground superviso
 
 1. At [asi1.ai](https://asi1.ai), start a chat and put `adproof-orchestrator` in the **To:** box, or prefix each message with `@<orchestrator address>`. Without the `@` mention or recipient, the message goes to ASI:One's own AI.
 2. Send `help`, then `demo aerobeat`.
+   To request a draft, send `generate Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults`. The reply is one pretty-printed JSON block; for example:
+
+   ```json
+   {
+     "audit_id": "example-audit-id",
+     "request": {"prompt": "Generate a Google Ads ad for AeroBeat AB-01 headphones for US adults"},
+     "generated_ad": {"headlines": ["AeroBeat AB-01"], "descriptions": ["Up to 30 hours with ANC off."], "final_url": "https://aerobeat.example/products/ab-01", "sources": ["aerobeat-ab01-product#1"]},
+     "original_check": {"decision": "PASS", "issues": []},
+     "final": {"decision": "PASS", "ad_copy": "AeroBeat AB-01. Up to 30 hours with ANC off.", "repair_verified": false}
+   }
+   ```
 3. The expected case-1 result is an original `FIX_REQUIRED` audit with four issues: two `AD_LANDING_PAGE_CONTRADICTION` findings for waterproof and 48-hour battery claims, `UNVERIFIED_ENDORSEMENT` for the unsupported athlete endorsement, and `PRICE_DISCOUNT_MISMATCH` for the 50%-off claim (the evidence establishes 25%). The workflow proposes one copy-only repair and independently re-checks it against the same image. The latest user-reported live run passed all steps in about 19.4 seconds. ASI:One now returns one pretty-printed JSON block rather than a result card; for example:
 
    ```json

@@ -3,6 +3,7 @@ doc_id: aerobeat-ab01-product
 title: AeroBeat AB-01 headphones product page
 url: https://aerobeat.example/products/ab-01
 doc_type: product_page
+product_id: ab-01
 ---
 
 # AeroBeat AB-01 headphones
@@ -25,6 +26,6 @@ The AB-01 is splash-resistant for everyday use and has an IPX4 rating. It is not
 
 The AB-01 includes a 1-year limited warranty and 30-day returns, subject to the published warranty and returns terms.
 
-## Claims not substantiated
+## Product information
 
-No endorsements, athlete recommendations, customer-review counts, “#1” claims, or “best” rankings are substantiated by this synthetic corpus.
+The current product information describes the AB-01 as a wireless over-ear headphone for everyday listening. The product page does not list an endorsement or ranking.

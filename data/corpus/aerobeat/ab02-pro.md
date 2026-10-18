@@ -3,6 +3,7 @@ doc_id: aerobeat-ab02-pro
 title: AeroBeat AB-02 Pro earbuds product page
 url: https://aerobeat.example/products/ab-02-pro
 doc_type: product_page
+product_id: ab-02-pro
 ---
 
 # AeroBeat AB-02 Pro earbuds

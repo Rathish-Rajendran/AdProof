@@ -3,6 +3,7 @@ doc_id: aerobeat-mini-speaker
 title: AeroBeat Mini speaker product page
 url: https://aerobeat.example/products/mini-speaker
 doc_type: product_page
+product_id: mini-speaker
 ---
 
 # AeroBeat Mini speaker

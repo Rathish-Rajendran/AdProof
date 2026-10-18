@@ -132,6 +132,18 @@ async def verify_campaign(
     )
     if policy is None:
         policy = next(iter(dependencies.policy.values()))
+    if request.context.platform == "meta_ads" and not any(
+        rule.review_status.value == "ACTIVE"
+        and request.context.platform in rule.applicability.get("platforms", [])
+        for rule in policy.rules.values()
+    ):
+        return TypedError(
+            code=TypedErrorCode.UNSUPPORTED_CONTEXT,
+            message=(
+                "Meta Ads policy checks are not active yet: no verified Meta rule text is "
+                "available, so a human review is required."
+            ),
+        )
     errors: list[TypedError] = []
     if request.corpus_mode:
         document = (
@@ -239,7 +251,7 @@ async def verify_campaign(
         if request.corpus_mode and dependencies.corpus_index:
             for item in proposed:
                 chunks = dependencies.corpus_index.retrieve(item.claim, top_k=6)
-                indices: list[int] = []
+                indices: list[int] = [0] if page is not None else []
                 for chunk in chunks:
                     if any(evidence_item.locator == chunk.chunk_id for evidence_item in evidence):
                         indices.append(

@@ -3,6 +3,7 @@ doc_id: aerobeat-faq
 title: AeroBeat frequently asked questions
 url: https://aerobeat.example/support/faq
 doc_type: faq
+product_id: ab-01
 ---
 
 # Frequently asked questions

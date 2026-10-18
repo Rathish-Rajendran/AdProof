@@ -20,7 +20,7 @@ from adproof.domain.models import (
 from adproof.generator.generator import GenerationTask, generate_ad
 from adproof.infrastructure.safe_http import SafeHttpClient
 from adproof.infrastructure.settings import Settings
-from adproof.model_client import ModelClient
+from adproof.model_client import ModelClient, ModelClientError
 from adproof.remediator.remediator import remediate_copy
 from adproof.verifier.verifier import VerificationDependencies, verify_campaign
 
@@ -51,7 +51,7 @@ async def run_generation_workflow(
             )
         )
         if isinstance(generation_result, TypedError):
-            raise RuntimeError(generation_result.message)
+            raise ModelClientError(generation_result)
         generated = generation_result.model_dump(mode="json")
     else:
         generated = await generate_ad(text, index=index, model=model, deadline=deadline)
@@ -111,7 +111,7 @@ async def run_generation_workflow(
         else await verify_campaign(original_request, verification)
     )
     if isinstance(original, TypedError):
-        raise RuntimeError(original.message)
+        raise ModelClientError(original)
     repair_result = None
     revised_candidate = None
     revised = None
@@ -148,7 +148,7 @@ async def run_generation_workflow(
             )
         )
         if isinstance(repair_result, TypedError):
-            raise RuntimeError(repair_result.message)
+            raise ModelClientError(repair_result)
         errors.extend(repair_result.errors)
         revised_candidate = candidate.model_copy(
             update={
@@ -173,7 +173,7 @@ async def run_generation_workflow(
             else await verify_campaign(revised_request, verification)
         )
         if isinstance(revised, TypedError):
-            raise RuntimeError(revised.message)
+            raise ModelClientError(revised)
         errors.extend(revised.errors)
         selected_candidate_id = repaired_id
         final_decision = revised.decision

@@ -26,7 +26,7 @@ from adproof.generator.workflow import run_generation_workflow
 from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.settings import Settings
 from adproof.infrastructure.telemetry import initialize_telemetry, record_event
-from adproof.model_client import build_model_client
+from adproof.model_client import ModelClientError, build_model_client
 from adproof.orchestrator.cards import (
     card_action_from_text,
     extract_card_action,
@@ -34,7 +34,10 @@ from adproof.orchestrator.cards import (
 )
 from adproof.orchestrator.gateway import UAgentsGateway
 from adproof.orchestrator.limits import OwnerAuditLimiter
-from adproof.orchestrator.report_view import render_report, report_summary
+from adproof.orchestrator.report_view import (
+    render_generation_failure,
+    render_report,
+)
 from adproof.orchestrator.workflow import build_live_dependencies, run_campaign
 from adproof.rag.index import CorpusIndex
 from adproof.transport.models import SpecialistOperation, SpecialistResult, SpecialistTask
@@ -322,21 +325,39 @@ def run() -> None:
         elif lowered == "example":
             example_path = root / "schemas/examples/CampaignInput.json"
             reply = "```json\n" + example_path.read_text(encoding="utf-8").strip() + "\n```"
-        elif lowered.startswith("generate "):
+        elif lowered == "generate" or lowered.startswith("generate "):
+            prompt = text[len("generate") :].strip()
+            if not prompt:
+                reply = render_generation_failure(
+                    prompt,
+                    "Usage: generate <text> — name one AeroBeat product to create an ad.",
+                )
+                await _send_terminal(ctx, sender, reply)
+                return
             try:
                 report = await execute_generation(
-                    text[len("generate ") :],
+                    prompt,
                     owner=sender,
                     session_id=session_id,
                     ctx=ctx,
                 )
                 if report is None:
-                    reply = "The per-owner concurrent-audit limit is currently full."
+                    reply = render_generation_failure(
+                        prompt,
+                        "The per-owner concurrent-generation limit is currently full.",
+                    )
                 else:
-                    reply = json.dumps(report_summary(report), indent=2, ensure_ascii=False)
+                    reply = render_report(report)
             except Exception as exc:
                 record_event("generation_failed", role="orchestrator", result=type(exc).__name__)
-                reply = f"Generation could not be processed ({type(exc).__name__}). Send `help` for accepted inputs."
+                reply = render_generation_failure(
+                    prompt,
+                    (
+                        exc.error.message
+                        if isinstance(exc, ModelClientError)
+                        else f"Generation could not be processed ({type(exc).__name__})."
+                    ),
+                )
         elif (text_card_action := _safe_text_card_action(text)) is not False and (
             text_card_action is not None
             or any(

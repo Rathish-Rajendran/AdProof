@@ -236,6 +236,23 @@ def test_quota_failure_report_deduplicates_notes_and_omits_repair():
     assert result["notes"] == ["Gemini quota exhausted."]
 
 
+def test_report_notes_include_incomplete_final_coverage_reasons():
+    report = _report(final_decision=Decision.HUMAN_REVIEW).model_copy(
+        update={
+            "coverage": _coverage().model_copy(
+                update={
+                    "image": CoverageItem(
+                        status=CoverageStatus.PARTIAL,
+                        reason="Image inspection was incomplete.",
+                    )
+                }
+            )
+        }
+    )
+
+    assert report_summary(report)["notes"] == ["Image inspection was incomplete."]
+
+
 def test_help_and_welcome_are_markdown_and_include_scope():
     help_message = _help_message()
 

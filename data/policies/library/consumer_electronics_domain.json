@@ -34,7 +34,6 @@
     "summary": "The rule specifies the standard for a product label stating Made in the United States. Paraphrase.",
     "topics": ["origin claims"],
     "claim_types": ["origin"],
-    "enforced_by": null,
-    "status": "REFERENCE"
+    "enforced_by": null
   }
 ]

@@ -6,13 +6,14 @@
     "jurisdiction": "US",
     "title": "16 CFR Part 255 — Guides Concerning Use of Endorsements and Testimonials in Advertising",
     "source_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-15/title-16.xml?part=255",
-    "section": "255.0",
+    "section": "255.1",
     "excerpts": [
-      "Specifically, the Guides address the application of section 5 of the FTC Act, 15 U.S.C. 45, to the use of endorsements and testimonials in advertising."
+      "Advertisers are subject to liability for misleading or unsubstantiated statements made through endorsements or for failing to disclose unexpected material connections between themselves and their endorsers.",
+      "the advertiser does not have substantiation that the endorser's experience is representative of what consumers will generally achieve, the advertisement should clearly and conspicuously disclose the generally expected performance in the depicted circumstances, and the advertiser must possess and rely on adequate substantiation for that representation."
     ],
-    "retrieved_at": "2026-10-18T08:05:46Z",
+    "retrieved_at": "2026-10-18T08:29:24Z",
     "content_sha256": "8e2847421c49464b7d0c41d7420e5249a66e422a73ad6fd44b45b65a4cf9eb43",
-    "summary": "The Guides discuss application of FTC Act section 5 to advertising endorsements and testimonials. Paraphrase.",
+    "summary": "The Guides address advertiser liability for endorsement claims and disclosure of material connections, including disclosure and substantiation for generally expected performance. Paraphrase.",
     "topics": ["endorsements", "testimonials"],
     "claim_types": ["endorsement"],
     "enforced_by": null,
@@ -34,6 +35,44 @@
     "summary": "This provision addresses materially misrepresented consumer reviews and testimonials. Paraphrase.",
     "topics": ["consumer reviews", "testimonials"],
     "claim_types": ["endorsement"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "FTC_GREEN_GUIDES_GENERAL_ENVIRONMENTAL_BENEFIT_REFERENCE",
+    "issuer": "FTC",
+    "platform": "any",
+    "jurisdiction": "US",
+    "title": "16 CFR Part 260 — Guides for the Use of Environmental Marketing Claims",
+    "source_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-15/title-16.xml?part=260",
+    "section": "260.4",
+    "excerpts": [
+      "It is deceptive to misrepresent, directly or by implication, that a product, package, or service offers a general environmental benefit."
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "339b9c0c2b80741cfcd9ba4e1aa803e8c805a045411efd6d3db2119efff72aca",
+    "summary": "The Green Guides state that misrepresenting a general environmental benefit is deceptive. Paraphrase.",
+    "topics": ["environmental claims", "green marketing"],
+    "claim_types": ["environmental"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "FTC_COPPA_VERIFIABLE_PARENTAL_CONSENT_REFERENCE",
+    "issuer": "FTC",
+    "platform": "any",
+    "jurisdiction": "US",
+    "title": "16 CFR Part 312 — Children's Online Privacy Protection Rule",
+    "source_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-15/title-16.xml?part=312",
+    "section": "312.3(b)",
+    "excerpts": [
+      "Obtain verifiable parental consent prior to any collection, use, and/or disclosure of personal information from children"
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "fc7fa2786bcaee315a14c9727330d336b630214f8529f40a706f5946386cb923",
+    "summary": "The COPPA Rule requires verifiable parental consent before collecting, using, or disclosing children's personal information. Paraphrase.",
+    "topics": ["children's privacy", "minors", "personal information"],
+    "claim_types": ["audience"],
     "enforced_by": null,
     "status": "REFERENCE"
   }

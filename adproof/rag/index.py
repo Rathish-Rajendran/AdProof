@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -29,11 +30,12 @@ class FastEmbedder:
 class CorpusIndex:
     def __init__(
         self,
-        path: Path = INDEX_PATH,
+        path: Path | None = None,
         corpus_path: Path = CORPUS_PATH,
         embedder=None,
     ):
-        self.path = path
+        runtime_dir = Path(os.getenv("ADPROOF_RUNTIME_DIR", ROOT / "runtime"))
+        self.path = path or runtime_dir / "corpus_index.sqlite3"
         self.corpus_path = corpus_path
         self.embedder = embedder
         self._runtime_embedder = None
@@ -54,8 +56,11 @@ class CorpusIndex:
         connection.execute(
             """CREATE TABLE IF NOT EXISTS documents (
                 doc_id TEXT PRIMARY KEY, title TEXT, url TEXT, doc_type TEXT,
-                text TEXT, sha256 TEXT)"""
+                text TEXT, sha256 TEXT, product_id TEXT)"""
         )
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(documents)").fetchall()}
+        if "product_id" not in columns:
+            connection.execute("ALTER TABLE documents ADD COLUMN product_id TEXT")
         connection.execute(
             """CREATE TABLE IF NOT EXISTS chunks (
                 chunk_id TEXT PRIMARY KEY, doc_id TEXT, title TEXT, heading TEXT,
@@ -85,7 +90,7 @@ class CorpusIndex:
             connection.execute("DELETE FROM documents")
             connection.execute("DELETE FROM metadata")
             connection.executemany(
-                "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?)",
                 [
                     (
                         doc.doc_id,
@@ -94,6 +99,7 @@ class CorpusIndex:
                         doc.doc_type,
                         doc.text,
                         doc.sha256,
+                        doc.product_id,
                     )
                     for doc in documents
                 ],
@@ -139,7 +145,7 @@ class CorpusIndex:
     def documents(self) -> list[CorpusDocument]:
         connection = sqlite3.connect(self.path)
         rows = connection.execute(
-            "SELECT doc_id, title, url, doc_type, text, sha256 FROM documents"
+            "SELECT doc_id, title, url, doc_type, text, sha256, product_id FROM documents"
         ).fetchall()
         connection.close()
         return [CorpusDocument(*row) for row in rows]
@@ -164,6 +170,19 @@ class CorpusIndex:
         )
         retriever = HybridRetriever(chunks, embeddings, self._get_embedder(), rrf_k=60)
         return retriever.retrieve(query, top_k=top_k)
+
+    def chunks_for_documents(self, doc_ids: set[str]) -> list[CorpusChunk]:
+        if not doc_ids:
+            return []
+        placeholders = ",".join("?" for _ in doc_ids)
+        connection = sqlite3.connect(self.path)
+        rows = connection.execute(
+            f"SELECT chunk_id, doc_id, title, heading, url, text, sha256 FROM chunks "
+            f"WHERE doc_id IN ({placeholders})",
+            tuple(doc_ids),
+        ).fetchall()
+        connection.close()
+        return [CorpusChunk(*row) for row in rows]
 
 
 def main() -> int:

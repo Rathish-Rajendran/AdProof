@@ -3,11 +3,12 @@ doc_id: aerobeat-ab01-retailer-sheet
 title: AeroBeat AB-01 synthetic retailer fact sheet
 url: https://aerobeat.example/retail/ab-01
 doc_type: supporting_document
+product_id: ab-01
 ---
 
 # AeroBeat AB-01 retailer fact sheet
 
-This synthetic reference sheet repeats the complete supported AB-01 fact set for demonstration retrieval. AeroBeat and all listed product information are fictional.
+This synthetic retailer information sheet is for demonstration use; AeroBeat and all listed product information are fictional.
 
 ## Offer
 
@@ -19,7 +20,7 @@ Current price: $60.
 
 Discount: 25% off the regular price.
 
-The facts above establish one price pair and one discount. They do not substantiate an offer at $49 or a discount of 50%.
+The current listed price pair is $80 regular and $60 current, a 25% discount.
 
 ## Product facts
 
@@ -33,10 +34,10 @@ Wireless connection: Bluetooth 5.3. Charging connection: USB-C. Weight: 250 g.
 
 The product includes a 1-year limited warranty and 30-day returns, subject to the published warranty and returns terms. No other warranty promise or return condition is established here.
 
-## Permitted fact restatement
+## Retail listing summary
 
-Supported copy can state that the AeroBeat AB-01 is a wireless over-ear headphone for everyday listening; current price is $60 from a regular price of $80, or 25% off; battery life is up to 30 hours with ANC off and up to 22 hours with ANC on; a 10-minute charge provides up to 3 hours of playback; the product is splash-resistant for everyday use, IPX4, and not waterproof; it uses Bluetooth 5.3 and USB-C; it weighs 250 g; and it includes a 1-year limited warranty and 30-day returns subject to published terms.
+The AeroBeat AB-01 is a wireless over-ear headphone for everyday listening. Its current price is $60 from a regular price of $80, or 25% off. Battery life is up to 30 hours with ANC off and up to 22 hours with ANC on. A 10-minute charge provides up to 3 hours of playback. It is splash-resistant for everyday use, has an IPX4 rating, and is not waterproof. It uses Bluetooth 5.3 and USB-C, weighs 250 g, and includes a 1-year limited warranty and 30-day returns subject to published terms.
 
-## Unsupported copy
+## Customer information
 
-This synthetic sheet does not substantiate a 48-hour battery claim, a $49 price, 50% off, athlete recommendations, endorsements, review counts, a “#1” claim, or a “best” ranking.
+Refer customers to the product page for specifications and to the published warranty and returns terms for purchase conditions. Retailers should preserve the AB-01 battery-life conditions and water-resistance qualification when summarizing features.

@@ -104,3 +104,98 @@ async def test_cited_chunk_that_was_not_retrieved_is_rejected():
             model=model,
             deadline=datetime.now(UTC) + timedelta(minutes=1),
         )
+
+
+@pytest.mark.asyncio
+async def test_generation_requires_a_product_match_from_retrieved_chunks():
+    class GeneralIndex(FakeIndex):
+        def __init__(self):
+            self.chunks = [
+                CorpusChunk(
+                    "overview#1",
+                    "company-overview",
+                    "AeroBeat company overview",
+                    "Company",
+                    "https://aerobeat.example/about",
+                    "AeroBeat designs consumer audio products.",
+                    "overview-sha",
+                )
+            ]
+
+        def documents(self):
+            return [
+                CorpusDocument(
+                    "company-overview",
+                    "AeroBeat company overview",
+                    "https://aerobeat.example/about",
+                    "company_overview",
+                    "Synthetic company overview",
+                    "overview-sha",
+                )
+            ]
+
+    with pytest.raises(ModelClientError) as error:
+        await generate_ad(
+            "Generate an ad",
+            index=GeneralIndex(),
+            model=FakeModelClient([]),
+            deadline=datetime.now(UTC) + timedelta(minutes=1),
+        )
+
+    assert "AB-01, AB-02 Pro, or Mini speaker" in error.value.error.message
+
+
+@pytest.mark.asyncio
+async def test_generation_prompt_includes_brand_chunks_and_us_policy_guidance():
+    brand_chunk = CorpusChunk(
+        "brand-voice#1",
+        "aerobeat-brand-voice",
+        "AeroBeat brand voice",
+        "Voice",
+        "https://aerobeat.example/brand/voice",
+        "Use clear, direct, helpful language.",
+        "brand-sha",
+    )
+
+    class GuidedIndex(FakeIndex):
+        def documents(self):
+            return [
+                *super().documents(),
+                CorpusDocument(
+                    "aerobeat-brand-voice",
+                    "AeroBeat brand voice",
+                    "https://aerobeat.example/brand/voice",
+                    "brand_guidance",
+                    "Synthetic brand guidelines",
+                    "brand-document-sha",
+                ),
+            ]
+
+        def chunks_for_documents(self, _doc_ids):
+            return [brand_chunk]
+
+    class CapturingModel(FakeModelClient):
+        def __init__(self):
+            super().__init__([_ad()])
+            self.prompt = ""
+
+        async def generate_json(self, prompt_parts, schema, *, deadline, purpose):
+            self.prompt = "\n".join(str(part) for part in prompt_parts)
+            return await super().generate_json(
+                prompt_parts,
+                schema,
+                deadline=deadline,
+                purpose=purpose,
+            )
+
+    model = CapturingModel()
+    await generate_ad(
+        "Generate a Google Ads ad for AeroBeat AB-01",
+        index=GuidedIndex(),
+        model=model,
+        deadline=datetime.now(UTC) + timedelta(minutes=1),
+    )
+
+    assert "POLICY GUIDANCE" in model.prompt
+    assert "FTC_DECEPTIVE_PRICING_FORMER_PRICE_REFERENCE" in model.prompt
+    assert "brand-voice#1" in model.prompt

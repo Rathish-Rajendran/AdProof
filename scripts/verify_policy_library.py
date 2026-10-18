@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+from html import unescape
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -15,6 +17,8 @@ LIBRARY = ROOT / "data/policies/library"
 ALLOWED_HOSTS = {
     "support.google.com",
     "transparency.meta.com",
+    "facebook.com",
+    "www.facebook.com",
     "www.ecfr.gov",
     "www.asa.org.uk",
 }
@@ -48,23 +52,37 @@ async def verify() -> int:
                     response.content,
                     url=final_url,
                     content_type=response.headers.get("content-type", ""),
+                    max_chars=100_000,
                 )
-                snapshots[url] = snapshot
+                raw_html_unescaped = unescape(response.text)
+                snapshots[url] = (
+                    snapshot,
+                    raw_html_unescaped,
+                    hashlib.sha256(raw_html_unescaped.encode("utf-8")).hexdigest(),
+                )
             except Exception as exc:
                 print(f"FAIL {url}: {type(exc).__name__}")
                 failures += 1
 
     for entry in entries:
         policy_id = entry["policy_id"]
-        snapshot = snapshots.get(entry["source_url"])
-        if snapshot is None:
+        source = snapshots.get(entry["source_url"])
+        if source is None:
             continue
-        if snapshot.content_sha256 != entry["content_sha256"]:
-            print(
-                f"SHA_CHANGED {policy_id}: {entry['content_sha256']} -> {snapshot.content_sha256}"
-            )
+        snapshot, raw_html_unescaped, raw_sha256 = source
+        match_mode = entry.get("match_mode", "normalized")
+        source_sha256 = (
+            raw_sha256 if match_mode == "raw_html_unescaped" else snapshot.content_sha256
+        )
+        if source_sha256 != entry["content_sha256"]:
+            print(f"SHA_CHANGED {policy_id}: {entry['content_sha256']} -> {source_sha256}")
         for excerpt in entry["excerpts"]:
-            if excerpt and excerpt in snapshot.text:
+            if match_mode not in {"normalized", "raw_html_unescaped"}:
+                print(f"FAIL {policy_id}: unsupported match_mode {match_mode}")
+                failures += 1
+                continue
+            match_text = raw_html_unescaped if match_mode == "raw_html_unescaped" else snapshot.text
+            if excerpt and excerpt in match_text:
                 print(f"FOUND {policy_id}: {excerpt[:90]}")
             else:
                 print(f"MISSING {policy_id}: {excerpt[:90]}")

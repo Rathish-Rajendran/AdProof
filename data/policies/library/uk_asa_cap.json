@@ -17,5 +17,43 @@
     "claim_types": ["objective"],
     "enforced_by": null,
     "status": "REFERENCE"
+  },
+  {
+    "policy_id": "ASA_CAP_3_7_SUBSTANTIATION_REFERENCE",
+    "issuer": "ASA/CAP",
+    "platform": "any",
+    "jurisdiction": "UK",
+    "title": "CAP Code rule 3.7 — substantiation",
+    "source_url": "https://www.asa.org.uk/type/capcode/code_rule/3.7.html",
+    "section": "CAP 3.7",
+    "excerpts": [
+      "CAP 3.7 Before distributing or submitting a marketing communication for publication, marketers must hold documentary evidence to prove claims that consumers are likely to regard as objective and that are capable of objective substantiation."
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "833492a0f9fa30fcd47672de0a2145f47ecdddee6beedf6979cea0962660b04a",
+    "summary": "CAP requires documentary evidence for objectively substantiable claims before publication. Paraphrase.",
+    "topics": ["substantiation", "objective claims"],
+    "claim_types": ["objective"],
+    "enforced_by": null,
+    "status": "REFERENCE"
+  },
+  {
+    "policy_id": "ASA_CAP_3_4_PRICE_INFORMATION_REFERENCE",
+    "issuer": "ASA/CAP",
+    "platform": "any",
+    "jurisdiction": "UK",
+    "title": "CAP Code rule 3.4 — price information",
+    "source_url": "https://www.asa.org.uk/type/capcode/code_rule/3.4.html",
+    "section": "CAP 3.4",
+    "excerpts": [
+      "CAP 3.4 For marketing communications that quote prices for advertised products, omitting material information (for the purposes of rule 3.3) includes omitting any of the following information, unless it is already apparent from the context:"
+    ],
+    "retrieved_at": "2026-10-18T08:29:24Z",
+    "content_sha256": "833492a0f9fa30fcd47672de0a2145f47ecdddee6beedf6979cea0962660b04a",
+    "summary": "CAP identifies material information that may not be omitted from product-price communications. Paraphrase.",
+    "topics": ["pricing", "material information"],
+    "claim_types": ["price", "discount"],
+    "enforced_by": null,
+    "status": "REFERENCE"
   }
 ]

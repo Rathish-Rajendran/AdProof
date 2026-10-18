@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,7 +21,7 @@ META_TERMS = re.compile(r"\b(?:meta|facebook|instagram)\b", re.IGNORECASE)
 
 class GenerationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    product_query: str = Field(min_length=1, max_length=2048)
+    prompt: str = Field(min_length=1, max_length=2048)
     platform: str = "google_ads"
     jurisdiction: str = "US"
     language: str = "en"
@@ -65,23 +67,62 @@ def parse_generation_request(text: str) -> GenerationRequest:
     platform = "meta_ads" if META_TERMS.search(text) else "google_ads"
     audience = "minors" if MINOR_TERMS.search(text) else "adults"
     return GenerationRequest(
-        product_query=text.strip(),
+        prompt=text.strip(),
         platform=platform,
         audience=audience,
     )
 
 
-def _document_for_request(index: Any, request: GenerationRequest):
+def _document_for_request(index: Any, chunks):
     documents = index.documents()
-    query_tokens = set(re.findall(r"[a-z0-9]+", request.product_query.casefold()))
-    candidates = [document for document in documents if document.doc_type == "product_page"]
-    return max(
-        candidates,
-        key=lambda document: len(
-            query_tokens & set(re.findall(r"[a-z0-9]+", document.title.casefold()))
-        ),
-        default=None,
-    )
+    by_id = {document.doc_id: document for document in documents}
+    for chunk in chunks:
+        owner = by_id.get(chunk.doc_id)
+        if owner is None or not owner.product_id and owner.doc_type != "product_page":
+            continue
+        product_id = owner.product_id or owner.doc_id
+        product = next(
+            (
+                document
+                for document in documents
+                if document.doc_type == "product_page"
+                and (document.product_id or document.doc_id) == product_id
+            ),
+            None,
+        )
+        if product is not None:
+            return product
+    return None
+
+
+def _brand_chunks(index: Any) -> list[Any]:
+    documents = index.documents()
+    doc_ids = {
+        document.doc_id
+        for document in documents
+        if document.doc_type in {"brand_voice", "brand_guidelines", "brand_guidance"}
+    }
+    if not doc_ids:
+        return []
+    if hasattr(index, "chunks_for_documents"):
+        return index.chunks_for_documents(doc_ids)
+    candidates = index.retrieve("AeroBeat brand voice guidelines", top_k=32)
+    return [chunk for chunk in candidates if chunk.doc_id in doc_ids]
+
+
+def _policy_guidance(request: GenerationRequest) -> str:
+    library = Path(__file__).resolve().parents[2] / "data" / "policies" / "library"
+    sections = []
+    for path in sorted(library.glob("*.json")):
+        for entry in json.loads(path.read_text(encoding="utf-8")):
+            if (
+                entry.get("platform") in {request.platform, "any"}
+                and entry.get("jurisdiction") == request.jurisdiction
+                and entry.get("excerpts")
+            ):
+                excerpts = "\n".join(f"- {excerpt}" for excerpt in entry["excerpts"])
+                sections.append(f"{entry['policy_id']}:\n{excerpts}")
+    return "\n\n".join(sections)
 
 
 def _violations(ad: BaseModel, request: GenerationRequest, chunks, landing_url: str) -> list[str]:
@@ -125,21 +166,29 @@ async def generate_ad(
     deadline: datetime,
 ) -> dict[str, Any]:
     request = parse_generation_request(text)
-    chunks = index.retrieve(request.product_query, top_k=6)
-    product = _document_for_request(index, request)
-    if not chunks or product is None:
+    retrieved_chunks = index.retrieve(request.prompt, top_k=6)
+    product = _document_for_request(index, retrieved_chunks)
+    if not retrieved_chunks or product is None:
         raise ModelClientError(
             TypedError(
                 code=TypedErrorCode.SOURCE_UNAVAILABLE,
-                message="No matching product page or corpus chunks were retrieved.",
+                message=(
+                    "Please name a product so AdProof can select the right product page: "
+                    "AB-01, AB-02 Pro, or Mini speaker."
+                ),
             )
         )
+    chunks = list(
+        {chunk.chunk_id: chunk for chunk in [*retrieved_chunks, *_brand_chunks(index)]}.values()
+    )
     schema = GeneratedGoogleAd if request.platform == "google_ads" else GeneratedMetaAd
+    policy_guidance = _policy_guidance(request)
     prompt = [
         "Generate advertising copy grounded only in the supplied synthetic company-corpus chunks. "
         "Do not infer unsupported product facts. Cite retrieved chunk IDs in sources. "
         f"Use final_url exactly as {product.url}.",
         "REQUEST:\n" + request.model_dump_json(),
+        "POLICY GUIDANCE:\n" + policy_guidance,
         "RETRIEVED CHUNKS:\n" + "\n\n".join(f"{chunk.chunk_id}: {chunk.text}" for chunk in chunks),
         (
             "For Google Ads, provide 3-5 headlines of at most 30 characters and exactly 2 "

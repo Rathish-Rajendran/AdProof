@@ -3,6 +3,7 @@ doc_id: aerobeat-warranty-returns
 title: AeroBeat warranty and returns
 url: https://aerobeat.example/support/warranty-returns
 doc_type: support
+product_id: ab-01
 ---
 
 # Warranty and returns

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from uuid import uuid4
 
 from adproof.domain.models import AuditReport, VerificationResult
 
@@ -14,11 +15,15 @@ from adproof.domain.models import AuditReport, VerificationResult
 def report_summary(report: AuditReport) -> dict[str, Any]:
     """The API-style result, one entry per workflow step."""
     original = _step(report.original_audit)
-    summary: dict[str, Any] = {"audit_id": report.audit_id, "original_check": original}
+    summary: dict[str, Any] = {"audit_id": report.audit_id}
     if report.generation_request is not None:
-        summary["request"] = report.generation_request
+        request = dict(report.generation_request)
+        if "product_query" in request:
+            request["prompt"] = request.pop("product_query")
+        summary["request"] = request
     if report.generated_ad is not None:
         summary["generated_ad"] = report.generated_ad
+    summary["original_check"] = original
     if report.repair_proposal:
         recheck = _step(report.revised_audit)
         recheck["changed_decision"] = (
@@ -33,7 +38,14 @@ def report_summary(report: AuditReport) -> dict[str, Any]:
         "ad_copy": _final_copy(report),
         "repair_verified": report.repair_verified,
     }
-    notes = list(dict.fromkeys(error.message for error in report.errors))
+    note_candidates = [error.message for error in report.errors]
+    if report.coverage is not None:
+        note_candidates.extend(
+            item["reason"]
+            for item in report.coverage.model_dump().values()
+            if item["status"] not in {"CHECKED", "NOT_APPLICABLE"} and item["reason"]
+        )
+    notes = list(dict.fromkeys(note_candidates))
     if notes:
         summary["notes"] = notes
     return summary
@@ -42,6 +54,20 @@ def report_summary(report: AuditReport) -> dict[str, Any]:
 def render_report(report: AuditReport) -> str:
     """The chat reply: the result as one pretty-printed JSON block."""
     return "```json\n" + json.dumps(report_summary(report), indent=2, ensure_ascii=False) + "\n```"
+
+
+def render_generation_failure(prompt: str, message: str, *, audit_id: str | None = None) -> str:
+    summary = {
+        "audit_id": audit_id or uuid4().hex,
+        "request": prompt,
+        "final": {
+            "decision": "HUMAN_REVIEW",
+            "ad_copy": None,
+            "repair_verified": False,
+        },
+        "notes": [message],
+    }
+    return "```json\n" + json.dumps(summary, indent=2, ensure_ascii=False) + "\n```"
 
 
 def _step(audit: VerificationResult | None) -> dict[str, Any]:

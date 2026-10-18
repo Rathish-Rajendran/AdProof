@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 from pathlib import Path
 
 from adproof.domain.models import ClaimSource, ClaimStatus, ClaimType
@@ -14,8 +13,8 @@ from adproof.generator.generator import (
 from adproof.generator.workflow import run_generation_workflow
 from adproof.infrastructure.budget import ModelCallBudget
 from adproof.infrastructure.settings import Settings
-from adproof.model_client import FakeModelClient, build_model_client
-from adproof.orchestrator.report_view import report_summary
+from adproof.model_client import FakeModelClient, ModelClientError, build_model_client
+from adproof.orchestrator.report_view import render_generation_failure, render_report
 from adproof.rag.index import CorpusIndex
 from adproof.verifier.policy import PolicyEngine
 
@@ -24,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _offline_model(index: CorpusIndex, prompt: str) -> FakeModelClient:
     request = parse_generation_request(prompt)
-    chunks = index.retrieve(request.product_query, top_k=6)
+    chunks = index.retrieve(request.prompt, top_k=6)
     product = next(
         document
         for document in index.documents()
@@ -109,35 +108,55 @@ def _policies(platform: str):
 
 
 async def _run(prompt: str, offline: bool):
-    settings = Settings.from_env()
-    index = CorpusIndex()
-    index.ensure_built()
-    model = (
-        _offline_model(index, prompt)
-        if offline
-        else build_model_client(
-            settings,
-            ModelCallBudget(limit=40),
+    if not prompt.strip():
+        print(
+            render_generation_failure(
+                prompt,
+                'Usage: python -m adproof.generate "<prompt>" [--offline].',
+            )
         )
-    )
-    report = await run_generation_workflow(
-        prompt,
-        index=index,
-        model=model,
-        settings=settings,
-        policies=_policies("google_ads"),
-        offline=offline,
-    )
-    print(json.dumps(report_summary(report), indent=2, ensure_ascii=False))
+        return 0
+    try:
+        settings = Settings.from_env()
+        index = CorpusIndex()
+        index.ensure_built()
+        model = (
+            _offline_model(index, prompt)
+            if offline
+            else build_model_client(
+                settings,
+                ModelCallBudget(limit=40),
+            )
+        )
+        report = await run_generation_workflow(
+            prompt,
+            index=index,
+            model=model,
+            settings=settings,
+            policies=_policies("google_ads"),
+            offline=offline,
+        )
+    except ModelClientError as exc:
+        print(render_generation_failure(prompt, exc.error.message))
+        return 0
+    except Exception as exc:
+        print(
+            render_generation_failure(
+                prompt,
+                f"Generation could not be processed ({type(exc).__name__}).",
+            )
+        )
+        return 0
+    print(render_report(report))
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate and preflight a corpus-grounded ad")
-    parser.add_argument("prompt")
+    parser.add_argument("prompt", nargs="?")
     parser.add_argument("--offline", action="store_true")
     args = parser.parse_args()
-    return asyncio.run(_run(args.prompt, args.offline))
+    return asyncio.run(_run(args.prompt or "", args.offline))
 
 
 if __name__ == "__main__":
