@@ -301,8 +301,8 @@ def test_first_four_case_fixtures_match_the_demo_matrix(case_number, expected_im
     campaign = CampaignInput.model_validate_json(fixture.read_text(encoding="utf-8"))
     assert campaign.creative.image_url.endswith(expected_image)
     assert campaign.repair_mode == expected_mode
-    assert "/535748301de3aefdf3510a2f9136f865900f2657/" in campaign.creative.image_url
-    assert "/535748301de3aefdf3510a2f9136f865900f2657/" in campaign.landing_page_url
+    assert "/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/" in campaign.creative.image_url
+    assert "/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/" in campaign.landing_page_url
     if case_number in {1, 3}:
         assert campaign.creative.ad_copy.startswith("AeroBeat headphones are completely waterproof")
     if case_number == 1:

@@ -4,10 +4,10 @@
   "campaign_id": "aerobeat-demo",
   "creative_version": 1,
   "creative": {
-    "image_url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/535748301de3aefdf3510a2f9136f865900f2657/data/fixtures/public/aerobeat-neutral.png",
+    "image_url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat-neutral.png",
     "ad_copy": "Meet AeroBeat AB-01 headphones: splash-resistant, with up to 30 hours of battery life when noise cancellation is off. Now $60, down from $80—25% off."
   },
-  "landing_page_url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/535748301de3aefdf3510a2f9136f865900f2657/data/fixtures/public/aerobeat.html",
+  "landing_page_url": "https://raw.githubusercontent.com/Rathish-Rajendran/AdProof/d3bebf537bb2ac8826a2fa0ba339fcbdfd723efe/data/fixtures/public/aerobeat.html",
   "context": {
     "platform": "google_ads",
     "jurisdiction": "US",

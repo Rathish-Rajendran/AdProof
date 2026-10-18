@@ -294,12 +294,18 @@ async def test_unsubstantiated_endorsement_and_health_claims_route_safely(
             ),
         ]
     )
+    http = StaticHttp()
+    if claim_type == "endorsement":
+        endorsement_page = (ROOT / "data/fixtures/public/aerobeat.html").read_bytes()
+        assert b"athlete" not in endorsement_page.lower()
+        http = StaticHttp(endorsement_page)
     result = await verify_campaign(
         request(copy),
-        VerificationDependencies(http=StaticHttp(), model=model, policy=policy()),  # type: ignore[arg-type]
+        VerificationDependencies(http=http, model=model, policy=policy()),  # type: ignore[arg-type]
     )
 
     assert result.claims[0].status == ClaimStatus.INSUFFICIENT_EVIDENCE
+    assert result.claims[0].status != ClaimStatus.CONTRADICTED
     assert any(issue.category == category and issue.action == action for issue in result.issues)
 
 
